@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-// 构建后复制静态资源到 dist 目录
+// 构建后复制静态资源到 docs 目录
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const distDir = path.join(__dirname, 'dist');
+const distDir = path.join(__dirname, 'docs');
 const imgSource = path.join(__dirname, 'img');
 const musicSource = path.join(__dirname, 'music');
 
