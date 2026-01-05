@@ -5,34 +5,36 @@ const ResultsScreen = ({ players, onRestart, onHome }) => {
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 overflow-y-auto no-scrollbar">
-      <div className="bg-green-500 pt-16 pb-20 rounded-b-[3rem] shadow-lg relative overflow-hidden shrink-0">
+    <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
+      {/* 缩小的顶部横幅 */}
+      <div className="bg-green-500 pt-8 pb-12 rounded-b-[2rem] shadow-lg relative overflow-hidden shrink-0">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-           <div className="absolute top-10 left-10 w-20 h-20 bg-white rounded-full"></div>
-           <div className="absolute bottom-10 right-10 w-32 h-32 bg-white rounded-full"></div>
+           <div className="absolute top-5 left-5 w-12 h-12 bg-white rounded-full"></div>
+           <div className="absolute bottom-5 right-5 w-16 h-16 bg-white rounded-full"></div>
         </div>
         
         <div className="text-center relative z-10">
-          <div className="inline-block p-4 bg-white/20 rounded-full backdrop-blur-sm mb-4">
-             <Trophy size={64} className="text-yellow-300 animate-bounce" />
+          <div className="inline-block p-2 bg-white/20 rounded-full backdrop-blur-sm mb-2">
+             <Trophy size={40} className="text-yellow-300 animate-bounce" />
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">游戏结束!</h1>
-          <p className="text-green-100 font-bold mt-1">最终排行榜</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">游戏结束!</h1>
+          <p className="text-green-100 font-semibold text-sm mt-1">最终排行榜</p>
         </div>
       </div>
 
-      <div className="flex-1 px-6 -mt-12 relative z-20 pb-10">
-        <div className="space-y-4">
+      {/* 紧凑的排行榜 */}
+      <div className="flex-1 px-4 -mt-8 relative z-20 overflow-hidden flex flex-col">
+        <div className="space-y-2 mb-4 flex-shrink-0">
           {sortedPlayers.map((player, index) => (
             <div 
               key={player.id} 
-              className={`flex items-center p-4 rounded-3xl shadow-sm border-2 transition-transform hover:scale-105 ${
+              className={`flex items-center p-3 rounded-2xl shadow-sm border-2 ${
                 index === 0 
                 ? 'bg-white border-yellow-400 shadow-yellow-100' 
                 : 'bg-white border-slate-100'
               }`}
             >
-              <div className={`w-10 h-10 flex items-center justify-center rounded-full font-black text-lg mr-4 ${
+              <div className={`w-8 h-8 flex items-center justify-center rounded-full font-black text-base mr-3 ${
                 index === 0 ? 'bg-yellow-400 text-yellow-900' : 
                 index === 1 ? 'bg-slate-300 text-slate-600' : 
                 index === 2 ? 'bg-orange-300 text-orange-800' : 'bg-slate-100 text-slate-400'
@@ -40,32 +42,36 @@ const ResultsScreen = ({ players, onRestart, onHome }) => {
                 {index + 1}
               </div>
               
-              <img src={player.avatar || '/caige/img/zjl.png'} alt={player.name} className="w-12 h-12 rounded-full mr-3 object-cover border-2 border-slate-100" />
-              
-              <div className="flex-1">
-                <h3 className="font-bold text-lg text-slate-800">{player.name}</h3>
-                {index === 0 && <span className="inline-block bg-yellow-100 text-yellow-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">MVP</span>}
+              {/* 显示emoji头像 */}
+              <div className="w-10 h-10 flex items-center justify-center text-2xl mr-2">
+                {player.avatar || '👤'}
               </div>
               
-              <div className="text-2xl font-black text-slate-800">
+              <div className="flex-1">
+                <h3 className="font-bold text-base text-slate-800">{player.name}</h3>
+                {index === 0 && <span className="inline-block bg-yellow-100 text-yellow-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider">MVP</span>}
+              </div>
+              
+              <div className="text-xl font-black text-slate-800">
                 {player.score} <span className="text-xs font-bold text-slate-400">pts</span>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="mt-12 space-y-4">
+        {/* 按钮区域 */}
+        <div className="space-y-2 pb-4 flex-shrink-0">
           <button 
             onClick={onRestart}
-            className="w-full py-5 bg-green-500 text-white font-black rounded-3xl shadow-xl shadow-green-200 active:scale-95 transition flex justify-center items-center gap-2 text-lg"
+            className="w-full py-3 bg-green-500 text-white font-black rounded-2xl shadow-lg shadow-green-200 active:scale-95 transition flex justify-center items-center gap-2 text-base"
           >
-             <RotateCcw strokeWidth={3} /> 再玩一次
+             <RotateCcw size={18} strokeWidth={3} /> 再玩一次
           </button>
           <button 
             onClick={onHome}
-            className="w-full py-5 bg-white text-slate-400 font-bold rounded-3xl border-2 border-slate-100 hover:bg-slate-50 hover:text-slate-600 active:scale-95 transition flex justify-center items-center gap-2"
+            className="w-full py-3 bg-white text-slate-500 font-bold rounded-2xl border-2 border-slate-100 hover:bg-slate-50 hover:text-slate-600 active:scale-95 transition flex justify-center items-center gap-2 text-sm"
           >
-            <Home strokeWidth={3} /> 返回首页
+            <Home size={18} strokeWidth={3} /> 返回首页
           </button>
         </div>
       </div>
@@ -74,4 +80,3 @@ const ResultsScreen = ({ players, onRestart, onHome }) => {
 };
 
 export default ResultsScreen;
-

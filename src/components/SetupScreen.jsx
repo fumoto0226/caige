@@ -203,12 +203,12 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
 
               <div>
                 <span className="text-sm font-bold text-slate-500 block mb-3">答题限时</span>
-                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                   {[5, 10, 15, 30, 60, 0].map(sec => (
+                <div className="flex gap-2 flex-wrap">
+                   {[10, 20, 30, 0].map(sec => (
                      <button
                        key={sec}
                        onClick={() => setSettings({...settings, timeLimit: sec})}
-                       className={`flex-shrink-0 px-4 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
+                       className={`px-4 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
                          settings.timeLimit === sec 
                          ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-200' 
                          : 'bg-white border-slate-200 text-slate-400'
