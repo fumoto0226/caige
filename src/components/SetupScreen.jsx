@@ -51,7 +51,7 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
         <p className="text-slate-400 font-medium text-sm">选择你的游戏模式 ✨</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-28 space-y-6 no-scrollbar">
+      <div className="flex-1 overflow-y-auto px-4 pb-36 space-y-6 no-scrollbar">
         
         {/* Mode Selection */}
         <section>

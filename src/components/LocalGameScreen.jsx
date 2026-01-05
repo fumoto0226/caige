@@ -372,7 +372,7 @@ const LocalGameScreen = ({
 
       {isRevealed && (
           <div className="absolute inset-0 z-50 flex flex-col justify-end bg-black/20 backdrop-blur-[1px]">
-            <div className="bg-white rounded-t-[2rem] shadow-2xl h-[70vh] flex flex-col animate-fadeIn overflow-hidden">
+            <div className="bg-white rounded-t-[2rem] shadow-2xl h-[70vh] flex flex-col animate-fadeIn overflow-hidden relative">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem] shrink-0">
                     <div className="flex-1">
                         <h3 className="text-lg font-black text-slate-800">《{currentSong.title}》</h3>
@@ -399,7 +399,7 @@ const LocalGameScreen = ({
                     ))}
                 </div>
 
-                <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-10">
+                <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-20">
                     {allPlayersScored ? (
                         <button 
                             onClick={songIndex + 1 >= totalSongs ? onEndGame : onNextSong}

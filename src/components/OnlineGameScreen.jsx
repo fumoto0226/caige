@@ -70,7 +70,6 @@ const OnlineGameScreen = ({
     setProgress(0);
     setHasFinishedFirstPlay(false);
     setIsCountingDown(false);
-    setIsRevealed(false);
     setCountdown(settings.timeLimit > 0 ? settings.timeLimit : 0);
     
     setPlayers(prev => prev.map(p => ({ ...p, status: 'answering' })));
