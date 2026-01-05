@@ -8,13 +8,6 @@ export default defineConfig({
   build: {
     outDir: 'docs',
     assetsDir: 'assets',
-    // 确保静态资源被正确处理
-    rollupOptions: {
-      output: {
-        // 保持资源路径结构
-        assetFileNames: 'assets/[name].[ext]'
-      }
-    }
   },
   publicDir: 'public',
 })
