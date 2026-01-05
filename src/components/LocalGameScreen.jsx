@@ -372,7 +372,7 @@ const LocalGameScreen = ({
 
       {isRevealed && (
           <div className="absolute inset-0 z-50 flex flex-col justify-end bg-black/20 backdrop-blur-[1px]">
-            <div className="bg-white rounded-t-[2rem] shadow-2xl h-[70vh] flex flex-col animate-fadeIn overflow-hidden relative">
+            <div className="bg-white rounded-t-[2rem] shadow-2xl h-[70vh] flex flex-col animate-fadeIn overflow-hidden">
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem] shrink-0">
                     <div className="flex-1">
                         <h3 className="text-lg font-black text-slate-800">《{currentSong.title}》</h3>
@@ -380,7 +380,7 @@ const LocalGameScreen = ({
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-4 pb-28 space-y-2 no-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
                     {players.map(p => (
                         <div key={p.id} className="flex items-center justify-between bg-white p-2.5 pr-2 rounded-xl border border-slate-100 shadow-sm">
                             <span className="font-bold text-slate-700 text-sm pl-2">{p.name}</span>
@@ -398,23 +398,29 @@ const LocalGameScreen = ({
                         </div>
                     ))}
                 </div>
-
-                <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-20">
-                    {allPlayersScored ? (
-                        <button 
-                            onClick={songIndex + 1 >= totalSongs ? onEndGame : onNextSong}
-                            className="w-full py-3 bg-blue-500 text-white text-base font-bold rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
-                        >
-                            {songIndex + 1 >= totalSongs ? '查看结果' : '下一题'} <ArrowRight size={18}/>
-                        </button>
-                    ) : (
-                         <div className="text-center py-3 bg-slate-100 rounded-2xl text-slate-400 font-bold text-xs">
-                            请记录所有玩家得分
-                        </div>
-                    )}
-                </div>
             </div>
           </div>
+      )}
+
+      {/* 下一题按钮 - 独立的 fixed 浮动按钮 */}
+      {isRevealed && allPlayersScored && (
+        <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-[60] max-w-md mx-auto right-0">
+          <button 
+            onClick={songIndex + 1 >= totalSongs ? onEndGame : onNextSong}
+            className="w-full py-4 bg-blue-500 text-white text-lg font-black rounded-[2rem] shadow-xl shadow-blue-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          >
+            {songIndex + 1 >= totalSongs ? '查看结果' : '下一题'} <ArrowRight size={20}/>
+          </button>
+        </div>
+      )}
+
+      {/* 提示信息 - 当未完成记分时显示 */}
+      {isRevealed && !allPlayersScored && (
+        <div className="fixed bottom-0 left-0 w-full p-4 z-[60] max-w-md mx-auto right-0 flex justify-center">
+          <div className="bg-slate-100 px-6 py-3 rounded-full text-slate-400 font-bold text-sm shadow-lg">
+            请记录所有玩家得分
+          </div>
+        </div>
       )}
     </div>
   );

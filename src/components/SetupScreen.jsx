@@ -258,6 +258,9 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
               </div>
            </div>
         </section>
+
+        {/* 不可见的占位模块 - 防止内容被底部按钮遮挡 */}
+        <div className="h-20 w-full"></div>
       </div>
 
       <div className="fixed bottom-0 left-0 w-full p-6 bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0">
