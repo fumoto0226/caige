@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/caige/',
   build: {
-    outDir: 'dist',
+    outDir: 'docs',
     assetsDir: 'assets',
     // 确保静态资源被正确处理
     rollupOptions: {
