@@ -70,7 +70,7 @@ const LocalGameScreen = ({
     stopTimer();
     stopCountdown();
     
-    if (audioRef.current && currentSong.path && gameState === 'playing') {
+    if (audioRef.current && currentSong.path) {
       audioRef.current.src = currentSong.path;
       audioRef.current.load();
       // 不自动播放，等待用户点击播放按钮
@@ -265,18 +265,27 @@ const LocalGameScreen = ({
         </button>
       </div>
 
-      <div className="py-2 overflow-x-auto no-scrollbar shrink-0 z-10 px-4">
-        <div className="flex items-center gap-2 min-w-max">
-          {players.map((p) => (
-             <div key={p.id} className="flex flex-col items-center min-w-[50px] bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100">
-                <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-lg mb-1">
-                   {p.avatar || '👤'}
-                </div>
-                <span className="text-[10px] font-bold text-slate-500 truncate w-full text-center">{p.name}</span>
-                <span className="text-[10px] font-black text-green-500">{p.score}</span>
-             </div>
-          ))}
+      {/* Players Chips - 支持左右滚动 */}
+      <div className="relative py-2 shrink-0 z-10">
+        <div className="overflow-x-auto px-4" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+          <div className="flex items-center gap-2 min-w-max">
+            {players.map((p) => (
+               <div key={p.id} className="flex flex-col items-center min-w-[50px] bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100">
+                  <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-lg mb-1">
+                     {p.avatar || '👤'}
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500 truncate w-full text-center">{p.name}</span>
+                  <span className="text-[10px] font-black text-green-500">{p.score}</span>
+               </div>
+            ))}
+          </div>
         </div>
+        {/* 滚动提示 */}
+        {players.length > 5 && (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-800/60 text-white text-[10px] px-2 py-1 rounded-full pointer-events-none">
+            ← 滑动 →
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-evenly p-4 w-full">

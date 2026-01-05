@@ -5,6 +5,8 @@ import { Settings, Users, Music, Clock, Play, Zap, LogIn, X } from 'lucide-react
 const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, PlaybackPosition }) => {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [roomId, setRoomId] = useState('');
+  const [showCustomTime, setShowCustomTime] = useState(false);
+  const [customTime, setCustomTime] = useState(15);
   
   const maxSongs = getAllSongs().length;
   
@@ -207,9 +209,12 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
                    {[10, 20, 30, 0].map(sec => (
                      <button
                        key={sec}
-                       onClick={() => setSettings({...settings, timeLimit: sec})}
+                       onClick={() => {
+                         setSettings({...settings, timeLimit: sec});
+                         setShowCustomTime(false);
+                       }}
                        className={`px-4 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
-                         settings.timeLimit === sec 
+                         settings.timeLimit === sec && !showCustomTime
                          ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-200' 
                          : 'bg-white border-slate-200 text-slate-400'
                        }`}
@@ -217,13 +222,47 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
                        {sec === 0 ? '♾️ 无限' : `${sec}s`}
                      </button>
                    ))}
+                   <button
+                     onClick={() => setShowCustomTime(!showCustomTime)}
+                     className={`px-4 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
+                       showCustomTime
+                       ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-200' 
+                       : 'bg-white border-slate-200 text-slate-400'
+                     }`}
+                   >
+                     ⚙️ 自定义
+                   </button>
                 </div>
+                {showCustomTime && (
+                  <div className="mt-3 bg-white p-3 rounded-2xl border-2 border-orange-200">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min="5"
+                        max="300"
+                        value={customTime}
+                        onChange={(e) => setCustomTime(parseInt(e.target.value) || 5)}
+                        className="flex-1 bg-slate-100 text-center text-lg font-bold py-2 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      />
+                      <span className="text-sm font-bold text-slate-500">秒</span>
+                      <button
+                        onClick={() => {
+                          setSettings({...settings, timeLimit: customTime});
+                          setShowCustomTime(false);
+                        }}
+                        className="bg-orange-500 text-white px-4 py-2 rounded-xl font-bold text-sm active:scale-95 transition"
+                      >
+                        确定
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
            </div>
         </section>
       </div>
 
-      <div className="fixed bottom-0 left-0 w-full p-6 bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0">
+      <div className="fixed bottom-0 left-0 w-full p-6 pb-safe bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0">
         <button 
           onClick={onStart}
           className="w-full bg-slate-900 text-white font-bold py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 text-xl active:scale-95 transition-transform hover:bg-slate-800"

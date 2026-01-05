@@ -24,7 +24,7 @@ const ResultsScreen = ({ players, onRestart, onHome }) => {
 
       {/* 紧凑的排行榜 */}
       <div className="flex-1 px-4 -mt-8 relative z-20 overflow-hidden flex flex-col">
-        <div className="space-y-2 mb-4 flex-shrink-0">
+        <div className="space-y-2 mb-4 flex-1 overflow-y-auto no-scrollbar">
           {sortedPlayers.map((player, index) => (
             <div 
               key={player.id} 
@@ -60,7 +60,7 @@ const ResultsScreen = ({ players, onRestart, onHome }) => {
         </div>
 
         {/* 按钮区域 */}
-        <div className="space-y-2 pb-4 flex-shrink-0">
+        <div className="space-y-2 pb-4 pb-safe flex-shrink-0">
           <button 
             onClick={onRestart}
             className="w-full py-3 bg-green-500 text-white font-black rounded-2xl shadow-lg shadow-green-200 active:scale-95 transition flex justify-center items-center gap-2 text-base"
