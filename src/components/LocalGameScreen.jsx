@@ -358,24 +358,29 @@ const LocalGameScreen = ({
         <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0 flex justify-center">
           <button 
             onClick={() => setIsRevealed(true)}
-            className="px-6 py-3 bg-yellow-400 text-yellow-900 font-bold rounded-full shadow-lg hover:bg-yellow-500 flex items-center gap-2 text-sm active:scale-95 transition-transform"
+            disabled={!isCountingDown}
+            className={`px-6 py-3 font-bold rounded-full shadow-lg flex items-center gap-2 text-sm transition-transform ${
+              isCountingDown 
+              ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 active:scale-95' 
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+            }`}
           >
-            <Eye size={18} /> {isCountingDown ? '提前查看' : '查看答案'}
+            <Eye size={18} /> {isCountingDown ? '提前查看答案' : '查看答案'}
           </button>
         </div>
       )}
 
       {isRevealed && (
           <div className="absolute inset-0 z-50 flex flex-col justify-end bg-black/20 backdrop-blur-[1px]">
-            <div className="bg-white rounded-t-[2rem] shadow-2xl h-[70vh] flex flex-col animate-fadeIn">
-                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem]">
+            <div className="bg-white rounded-t-[2rem] shadow-2xl h-[70vh] flex flex-col animate-fadeIn overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem] shrink-0">
                     <div className="flex-1">
                         <h3 className="text-lg font-black text-slate-800">《{currentSong.title}》</h3>
                         <p className="text-xs font-bold text-slate-400">{ARTISTS.find(a => a.id === currentSong.artistId)?.name}</p>
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
+                <div className="flex-1 overflow-y-auto p-4 pb-28 space-y-2 no-scrollbar">
                     {players.map(p => (
                         <div key={p.id} className="flex items-center justify-between bg-white p-2.5 pr-2 rounded-xl border border-slate-100 shadow-sm">
                             <span className="font-bold text-slate-700 text-sm pl-2">{p.name}</span>
@@ -394,7 +399,7 @@ const LocalGameScreen = ({
                     ))}
                 </div>
 
-                <div className="p-4 border-t border-slate-100 pb-safe">
+                <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-10">
                     {allPlayersScored ? (
                         <button 
                             onClick={songIndex + 1 >= totalSongs ? onEndGame : onNextSong}

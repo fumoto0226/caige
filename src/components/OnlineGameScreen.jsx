@@ -17,7 +17,6 @@ const OnlineGameScreen = ({
   const [messages, setMessages] = useState([]);
   const [inputVal, setInputVal] = useState('');
   const [progress, setProgress] = useState(0);
-  const [isRevealed, setIsRevealed] = useState(false);
   
   const [hasFinishedFirstPlay, setHasFinishedFirstPlay] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -125,13 +124,8 @@ const OnlineGameScreen = ({
           if (prev <= 1) {
             stopCountdown();
             setIsCountingDown(false);
-            setMessages(m => [...m, {
-                id: `timeup-${Date.now()}`,
-                playerId: 'system',
-                playerName: 'System',
-                text: '⏰ 时间到！',
-                type: 'system'
-            }]);
+            // 时间到自动公布答案
+            handleRevealAnswer();
             return 0;
           }
           return prev - 1;
@@ -222,6 +216,29 @@ const OnlineGameScreen = ({
     if (window.confirm("确定要退出房间吗？")) {
       onEndGame();
     }
+  };
+
+  const handleRevealAnswer = () => {
+    const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+    // 发送绿色醒目的答案公布消息
+    setMessages(m => [...m, {
+      id: `reveal-${Date.now()}`,
+      playerId: 'system',
+      playerName: 'System',
+      text: `🎵 答案揭晓：《${currentSong.title}》 - ${artist?.name}`,
+      type: 'reveal'
+    }]);
+    // 等待一下再发送等待提示
+    setTimeout(() => {
+      setMessages(m => [...m, {
+        id: `wait-next-${Date.now()}`,
+        playerId: 'system',
+        playerName: 'System',
+        text: '⏸ 等待房主播放下一题...',
+        type: 'system'
+      }]);
+    }, 500);
+    setHasGameStarted(false);
   };
 
   if (!currentSong) return null;
@@ -320,38 +337,37 @@ const OnlineGameScreen = ({
           <div className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-2xl flex items-center justify-center z-20">
              <button 
               onClick={handleHostStart}
-              className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-5 py-2 rounded-full text-xs font-black shadow-lg shadow-yellow-200 animate-pulse flex items-center gap-2 transform transition hover:scale-105"
+              className={`px-5 py-2 rounded-full text-xs font-black shadow-lg animate-pulse flex items-center gap-2 transform transition hover:scale-105 ${
+                songIndex === 0 
+                ? 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 shadow-yellow-200' 
+                : 'bg-green-500 hover:bg-green-600 text-white shadow-green-200'
+              }`}
             >
-              <PlayCircle size={16} /> 房主开始游戏
+              <PlayCircle size={16} /> {songIndex === 0 ? '房主开始游戏' : '播放下一题'}
             </button>
           </div>
         )}
       </div>
       
-      {/* Skip/Reveal Buttons */}
-      {hasGameStarted && (
+      {/* Reveal Button - 只有房主在倒计时时可见 */}
+      {hasGameStarted && isHost && (
          <div className="flex justify-center mt-2 gap-2 shrink-0 px-4">
-             {!isRevealed && (
-               <button 
-                 onClick={() => setIsRevealed(true)}
-                 className="text-[10px] bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-3 py-1.5 rounded-full font-bold transition-colors flex items-center gap-1"
-               >
-                 <Eye size={12} /> 查看答案
-               </button>
-             )}
-             {isHost && (
-               <button 
-                 onClick={songIndex + 1 >= totalSongs ? onEndGame : onNextSong}
-                 className="text-[10px] bg-slate-200 hover:bg-slate-300 text-slate-600 px-3 py-1 rounded-full font-bold transition-colors"
-               >
-                 {songIndex + 1 >= totalSongs ? '结束游戏' : '⏭ 跳过'}
-               </button>
-             )}
+             <button 
+               onClick={handleRevealAnswer}
+               disabled={!isCountingDown}
+               className={`text-[10px] px-4 py-1.5 rounded-full font-bold transition-colors flex items-center gap-1 ${
+                 isCountingDown
+                 ? 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 active:scale-95'
+                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+               }`}
+             >
+               <Eye size={12} /> 提前公布答案
+             </button>
          </div>
       )}
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2 no-scrollbar">
+      <div className="flex-1 overflow-y-auto px-4 py-2 pb-20 space-y-2 no-scrollbar">
         {messages.map(msg => {
           if (msg.type === 'system') {
             return (
@@ -364,6 +380,15 @@ const OnlineGameScreen = ({
             return (
               <div key={msg.id} className="flex justify-center my-2 w-full">
                 <div className="bg-gradient-to-r from-yellow-100 to-orange-100 border border-yellow-200 text-yellow-800 font-bold text-xs px-4 py-2 rounded-xl shadow-sm animate-bounce text-center">
+                  {msg.text}
+                </div>
+              </div>
+            );
+          }
+          if (msg.type === 'reveal') {
+            return (
+              <div key={msg.id} className="flex justify-center my-2 w-full">
+                <div className="bg-gradient-to-r from-green-400 to-emerald-500 text-white font-black text-base px-6 py-3 rounded-2xl shadow-lg animate-popIn text-center">
                   {msg.text}
                 </div>
               </div>
@@ -386,43 +411,27 @@ const OnlineGameScreen = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <form onSubmit={handleSendMessage} className="bg-white p-2 shadow-up border-t border-slate-50 flex gap-2 shrink-0 pb-safe z-20">
-        <input
-          type="text"
-          value={inputVal}
-          onChange={(e) => setInputVal(e.target.value)}
-          placeholder={hasGameStarted ? "猜猜是哪首歌..." : "等待中..."}
-          className="flex-1 bg-slate-100 text-slate-800 rounded-full pl-4 pr-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-green-400 focus:bg-white transition-all placeholder-slate-400 text-sm"
-          disabled={!hasGameStarted}
-        />
-        <button 
-          type="submit" 
-          className="bg-green-500 text-white w-10 h-10 rounded-full shadow-lg shadow-green-200 hover:bg-green-600 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center active:scale-95" 
-          disabled={!inputVal.trim() || !hasGameStarted}
-        >
-          <Send size={18} className="ml-0.5" />
-        </button>
-      </form>
+      {/* Input Area - Fixed 浮动布局 */}
+      <div className="fixed bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent z-30 max-w-md mx-auto right-0">
+        <form onSubmit={handleSendMessage} className="bg-white p-3 flex gap-2">
+          <input
+            type="text"
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            placeholder={hasGameStarted ? "猜猜是哪首歌..." : "等待中..."}
+            className="flex-1 bg-slate-100 text-slate-800 rounded-full pl-4 pr-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-green-400 focus:bg-white transition-all placeholder-slate-400 text-sm"
+            disabled={!hasGameStarted}
+          />
+          <button 
+            type="submit" 
+            className="bg-green-500 text-white w-10 h-10 rounded-full shadow-lg shadow-green-200 hover:bg-green-600 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center active:scale-95" 
+            disabled={!inputVal.trim() || !hasGameStarted}
+          >
+            <Send size={18} className="ml-0.5" />
+          </button>
+        </form>
+      </div>
 
-      {/* Reveal Modal */}
-      {isRevealed && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full animate-popIn">
-            <div className="text-center mb-4">
-              <img src={currentSong.cover} alt="Cover" className="w-24 h-24 rounded-full mx-auto mb-3 shadow-lg" />
-              <h3 className="text-xl font-black text-slate-800">《{currentSong.title}》</h3>
-              <p className="text-sm font-semibold text-slate-500">{ARTISTS.find(a => a.id === currentSong.artistId)?.name}</p>
-            </div>
-            <button 
-              onClick={() => setIsRevealed(false)}
-              className="w-full py-3 bg-blue-500 text-white font-bold rounded-2xl active:scale-95 transition"
-            >
-              继续游戏
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
