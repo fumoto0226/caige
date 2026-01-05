@@ -15,6 +15,14 @@ const PlaybackPosition = {
   START: 'START'
 };
 
+// 随机emoji列表
+const EMOJI_LIST = ['😀', '😎', '🤠', '🥳', '🤓', '😺', '🐶', '🐼', '🦁', '🐯', '🦊', '🐻', '🐨', '🐮', '🐷', '🐸', '🐵', '🦄', '🐲', '🦖'];
+
+// 获取随机emoji
+const getRandomEmoji = () => {
+  return EMOJI_LIST[Math.floor(Math.random() * EMOJI_LIST.length)];
+};
+
 const App = () => {
   const [screen, setScreen] = useState('setup');
   
@@ -56,13 +64,13 @@ const App = () => {
       setPlayers([{
         id: 'p1',
         name: '玩家 1',
-        avatar: '/caige/img/zjl.png',
+        avatar: getRandomEmoji(),
         score: 0,
         isCurrentUser: true
       }]);
     } else {
       setPlayers([
-        { id: 'me', name: '我 (房主)', avatar: '/caige/img/zjl.png', score: 0, isCurrentUser: true }
+        { id: 'me', name: '我 (房主)', avatar: getRandomEmoji(), score: 0, isCurrentUser: true }
       ]);
     }
 
@@ -78,8 +86,8 @@ const App = () => {
     setSettings(prev => ({ ...prev, mode: GameMode.ONLINE }));
 
     setPlayers([
-      { id: 'host', name: '房主', avatar: '/caige/img/zjl.png', score: 0, isCurrentUser: false },
-      { id: 'me', name: '我', avatar: '/caige/img/zjl.png', score: 0, isCurrentUser: true }
+      { id: 'host', name: '房主', avatar: getRandomEmoji(), score: 0, isCurrentUser: false },
+      { id: 'me', name: '我', avatar: getRandomEmoji(), score: 0, isCurrentUser: true }
     ]);
 
     setScreen('game');

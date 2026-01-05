@@ -1,7 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ARTISTS } from '../data/songs';
-import Visualizer from './Visualizer';
 import { Play, Pause, RotateCcw, Check, X, Eye, ArrowRight, Lock } from 'lucide-react';
+
+// 随机emoji列表
+const EMOJI_LIST = ['😀', '😎', '🤠', '🥳', '🤓', '😺', '🐶', '🐼', '🦁', '🐯', '🦊', '🐻', '🐨', '🐮', '🐷', '🐸', '🐵', '🦄', '🐲', '🦖'];
+
+// 获取随机emoji
+const getRandomEmoji = () => {
+  return EMOJI_LIST[Math.floor(Math.random() * EMOJI_LIST.length)];
+};
 
 const LocalGameScreen = ({
   settings,
@@ -63,14 +70,10 @@ const LocalGameScreen = ({
     stopTimer();
     stopCountdown();
     
-    if (audioRef.current && currentSong.path) {
+    if (audioRef.current && currentSong.path && gameState === 'playing') {
       audioRef.current.src = currentSong.path;
       audioRef.current.load();
-      
-      setTimeout(() => {
-        setIsPlaying(true);
-        audioRef.current?.play().catch(err => console.error('播放失败:', err));
-      }, 500);
+      // 不自动播放，等待用户点击播放按钮
     }
   }, [currentSong]);
 
@@ -169,7 +172,8 @@ const LocalGameScreen = ({
       }
       return p;
     }));
-    setRoundScoresRecorded(prev => ({...prev, [playerId]: true}));
+    // 记录答对或答错的状态
+    setRoundScoresRecorded(prev => ({...prev, [playerId]: correct}));
   };
 
   const addPlayer = () => {
@@ -178,7 +182,7 @@ const LocalGameScreen = ({
       {
         id: `p${Date.now()}`,
         name: `玩家 ${prev.length + 1}`,
-        avatar: '',
+        avatar: getRandomEmoji(),
         score: 0,
         isCurrentUser: true
       }
@@ -195,7 +199,7 @@ const LocalGameScreen = ({
     setPlayers(prev => prev.map(p => p.id === id ? { ...p, name } : p));
   };
 
-  const allPlayersScored = players.every(p => roundScoresRecorded[p.id]);
+  const allPlayersScored = players.every(p => roundScoresRecorded[p.id] !== undefined);
 
   if (gameState === 'standby') {
     return (
@@ -266,7 +270,7 @@ const LocalGameScreen = ({
           {players.map((p) => (
              <div key={p.id} className="flex flex-col items-center min-w-[50px] bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100">
                 <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-lg mb-1">
-                   {p.avatar ? <img src={p.avatar} alt="" className="w-full h-full rounded-full"/> : '👤'}
+                   {p.avatar || '👤'}
                 </div>
                 <span className="text-[10px] font-bold text-slate-500 truncate w-full text-center">{p.name}</span>
                 <span className="text-[10px] font-black text-green-500">{p.score}</span>
@@ -299,9 +303,6 @@ const LocalGameScreen = ({
            </div>
         </div>
 
-        <div className="w-full h-8 flex items-end justify-center opacity-60 shrink-0">
-          <Visualizer isPlaying={isPlaying} />
-        </div>
 
         <div className="w-full max-w-xs bg-white p-4 rounded-[1.5rem] shadow-xl shadow-slate-200/50 space-y-2 shrink-0 relative">
           <div className="relative pt-1">
@@ -374,9 +375,9 @@ const LocalGameScreen = ({
                         <div key={p.id} className="flex items-center justify-between bg-white p-2.5 pr-2 rounded-xl border border-slate-100 shadow-sm">
                             <span className="font-bold text-slate-700 text-sm pl-2">{p.name}</span>
                             
-                            {roundScoresRecorded[p.id] ? (
-                                <span className={`text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1 ${players.find(pl => pl.id === p.id)?.score && players.find(pl => pl.id === p.id).score % 10 === 0 && roundScoresRecorded[p.id] ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
-                                    {players.find(pl => pl.id === p.id)?.score && players.find(pl => pl.id === p.id).score % 10 === 0 && roundScoresRecorded[p.id] ? '正确' : '错误'}
+                            {roundScoresRecorded[p.id] !== undefined ? (
+                                <span className={`text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1 ${roundScoresRecorded[p.id] ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
+                                    {roundScoresRecorded[p.id] ? '正确' : '错误'}
                                 </span>
                             ) : (
                                 <div className="flex gap-2">
