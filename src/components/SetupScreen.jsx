@@ -205,8 +205,8 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
 
               <div>
                 <span className="text-sm font-bold text-slate-500 block mb-3">答题限时</span>
-                <div className="flex gap-2 flex-wrap">
-                   {[10, 20, 30, 0].map(sec => (
+                <div className="flex gap-2 flex-wrap items-center">
+                   {[10, 20, 30, 60, 0].map(sec => (
                      <button
                        key={sec}
                        onClick={() => {
@@ -219,50 +219,48 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
                          : 'bg-white border-slate-200 text-slate-400'
                        }`}
                      >
-                       {sec === 0 ? '♾️ 无限' : `${sec}s`}
+                       {sec === 0 ? '♾️' : `${sec}s`}
                      </button>
                    ))}
                    <button
                      onClick={() => setShowCustomTime(!showCustomTime)}
                      className={`px-4 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
-                       showCustomTime
+                       showCustomTime || (settings.timeLimit !== 10 && settings.timeLimit !== 20 && settings.timeLimit !== 30 && settings.timeLimit !== 60 && settings.timeLimit !== 0)
                        ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-200' 
                        : 'bg-white border-slate-200 text-slate-400'
                      }`}
                    >
-                     ⚙️ 自定义
+                     {showCustomTime || (settings.timeLimit !== 10 && settings.timeLimit !== 20 && settings.timeLimit !== 30 && settings.timeLimit !== 60 && settings.timeLimit !== 0) ? `⚙️ ${settings.timeLimit}s` : '⚙️ 自定义'}
                    </button>
+                   {showCustomTime && (
+                     <div className="flex items-center gap-2 bg-white p-2 rounded-xl border-2 border-orange-200">
+                       <input
+                         type="number"
+                         min="5"
+                         max="300"
+                         value={customTime}
+                         onChange={(e) => setCustomTime(parseInt(e.target.value) || 5)}
+                         className="w-16 bg-slate-100 text-center text-sm font-bold py-1 px-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+                       />
+                       <span className="text-xs font-bold text-slate-500">秒</span>
+                       <button
+                         onClick={() => {
+                           setSettings({...settings, timeLimit: customTime});
+                           setShowCustomTime(false);
+                         }}
+                         className="bg-orange-500 text-white px-3 py-1 rounded-lg font-bold text-xs active:scale-95 transition"
+                       >
+                         ✓
+                       </button>
+                     </div>
+                   )}
                 </div>
-                {showCustomTime && (
-                  <div className="mt-3 bg-white p-3 rounded-2xl border-2 border-orange-200">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="number"
-                        min="5"
-                        max="300"
-                        value={customTime}
-                        onChange={(e) => setCustomTime(parseInt(e.target.value) || 5)}
-                        className="flex-1 bg-slate-100 text-center text-lg font-bold py-2 px-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
-                      />
-                      <span className="text-sm font-bold text-slate-500">秒</span>
-                      <button
-                        onClick={() => {
-                          setSettings({...settings, timeLimit: customTime});
-                          setShowCustomTime(false);
-                        }}
-                        className="bg-orange-500 text-white px-4 py-2 rounded-xl font-bold text-sm active:scale-95 transition"
-                      >
-                        确定
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
            </div>
         </section>
       </div>
 
-      <div className="fixed bottom-0 left-0 w-full p-6 pb-safe bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0">
+      <div className="fixed bottom-0 left-0 w-full p-6 bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0">
         <button 
           onClick={onStart}
           className="w-full bg-slate-900 text-white font-bold py-5 rounded-[2rem] shadow-xl flex items-center justify-center gap-3 text-xl active:scale-95 transition-transform hover:bg-slate-800"

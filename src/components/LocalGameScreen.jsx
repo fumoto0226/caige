@@ -203,15 +203,15 @@ const LocalGameScreen = ({
 
   if (gameState === 'standby') {
     return (
-      <div className="flex flex-col h-full bg-white font-sans p-6 overflow-hidden">
-        <div className="text-center mt-4 mb-4">
+      <div className="flex flex-col h-full bg-white font-sans overflow-hidden">
+        <div className="text-center pt-10 pb-4">
           <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-2 animate-bounce">
             <Play size={32} fill="currentColor" />
           </div>
           <h1 className="text-2xl font-black text-slate-800">准备开始</h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto mb-4 space-y-3 px-2 no-scrollbar">
+        <div className="flex-1 overflow-y-auto pb-24 space-y-3 px-6 no-scrollbar">
            {players.map((p, index) => (
              <div key={p.id} className="flex items-center gap-2 bg-slate-50 p-3 rounded-2xl border-2 border-slate-100 shadow-sm">
                <div className="w-6 h-6 flex items-center justify-center bg-slate-200 text-slate-500 rounded-full font-bold text-xs">
@@ -240,12 +240,14 @@ const LocalGameScreen = ({
            </button>
         </div>
 
-        <button 
-          onClick={() => setGameState('playing')}
-          className="w-full py-4 bg-green-500 text-white text-lg font-black rounded-3xl shadow-xl shadow-green-200 hover:bg-green-600 active:scale-95 transition-transform"
-        >
-          🚀 开始游戏
-        </button>
+        <div className="fixed bottom-0 left-0 w-full p-6 bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0">
+          <button 
+            onClick={() => setGameState('playing')}
+            className="w-full py-4 bg-green-500 text-white text-lg font-black rounded-3xl shadow-xl shadow-green-200 hover:bg-green-600 active:scale-95 transition-transform"
+          >
+            🚀 开始游戏
+          </button>
+        </div>
       </div>
     );
   }
@@ -266,7 +268,7 @@ const LocalGameScreen = ({
       </div>
 
       {/* Players Chips - 支持左右滚动 */}
-      <div className="relative py-2 shrink-0 z-10">
+      <div className="py-2 shrink-0 z-10">
         <div className="overflow-x-auto px-4" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
           <div className="flex items-center gap-2 min-w-max">
             {players.map((p) => (
@@ -280,16 +282,10 @@ const LocalGameScreen = ({
             ))}
           </div>
         </div>
-        {/* 滚动提示 */}
-        {players.length > 5 && (
-          <div className="absolute right-2 top-1/2 -translate-y-1/2 bg-slate-800/60 text-white text-[10px] px-2 py-1 rounded-full pointer-events-none">
-            ← 滑动 →
-          </div>
-        )}
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-evenly p-4 w-full">
-        <div className={`relative w-40 h-40 sm:w-56 sm:h-56 rounded-full border-4 border-white shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-700 shrink-0 ${isPlaying ? 'animate-spin-slow' : ''}`}>
+      <div className="flex-1 flex flex-col items-center justify-center p-4 w-full gap-3">
+        <div className={`relative w-52 h-52 sm:w-64 sm:h-64 rounded-full border-4 border-white shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-700 shrink-0 ${isPlaying ? 'animate-spin-slow' : ''}`}>
            <div className="absolute inset-0 bg-slate-800"></div>
            <div className="absolute inset-2 border border-slate-700 rounded-full opacity-30"></div>
            <div className="absolute inset-6 border border-slate-700 rounded-full opacity-30"></div>
@@ -313,7 +309,7 @@ const LocalGameScreen = ({
         </div>
 
 
-        <div className="w-full max-w-xs bg-white p-4 rounded-[1.5rem] shadow-xl shadow-slate-200/50 space-y-2 shrink-0 relative">
+        <div className="w-full max-w-xs bg-white p-3 rounded-[1.5rem] shadow-xl shadow-slate-200/50 shrink-0 relative">
           <div className="relative pt-1">
             <input
               type="range"
@@ -334,12 +330,12 @@ const LocalGameScreen = ({
             )}
           </div>
           
-          <div className="flex justify-between text-[10px] font-bold text-slate-400">
+          <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
             <span>{Math.floor(progress)}s</span>
             <span>{maxDuration}s</span>
           </div>
 
-          <div className="flex justify-center gap-6 items-center pt-1">
+          <div className="flex justify-center gap-6 items-center">
             <button 
               onClick={handleReplay} 
               disabled={!hasFinishedFirstPlay}
@@ -358,16 +354,16 @@ const LocalGameScreen = ({
         </div>
       </div>
 
-      <div className="p-4 bg-white/50 backdrop-blur-sm shrink-0 flex justify-center pb-safe">
-        {!isRevealed ? (
-            <button 
+      {!isRevealed && (
+        <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0 flex justify-center">
+          <button 
             onClick={() => setIsRevealed(true)}
             className="px-6 py-3 bg-yellow-400 text-yellow-900 font-bold rounded-full shadow-lg hover:bg-yellow-500 flex items-center gap-2 text-sm active:scale-95 transition-transform"
-            >
+          >
             <Eye size={18} /> {isCountingDown ? '提前查看' : '查看答案'}
-            </button>
-        ) : null}
-      </div>
+          </button>
+        </div>
+      )}
 
       {isRevealed && (
           <div className="absolute inset-0 z-50 flex flex-col justify-end bg-black/20 backdrop-blur-[1px]">
