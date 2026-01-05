@@ -213,7 +213,7 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
                          setSettings({...settings, timeLimit: sec});
                          setShowCustomTime(false);
                        }}
-                       className={`px-4 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
+                       className={`px-3 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
                          settings.timeLimit === sec && !showCustomTime
                          ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-200' 
                          : 'bg-white border-slate-200 text-slate-400'
@@ -224,7 +224,7 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
                    ))}
                    <button
                      onClick={() => setShowCustomTime(!showCustomTime)}
-                     className={`px-4 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
+                     className={`px-3 py-2 rounded-2xl font-bold text-sm border-2 transition-all ${
                        showCustomTime || (settings.timeLimit !== 10 && settings.timeLimit !== 20 && settings.timeLimit !== 30 && settings.timeLimit !== 60 && settings.timeLimit !== 0)
                        ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-200' 
                        : 'bg-white border-slate-200 text-slate-400'

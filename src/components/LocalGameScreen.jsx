@@ -284,7 +284,7 @@ const LocalGameScreen = ({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center p-4 w-full gap-3">
+      <div className="flex-1 flex flex-col items-center justify-start pt-6 pb-2 px-4 w-full gap-6">
         <div className={`relative w-52 h-52 sm:w-64 sm:h-64 rounded-full border-4 border-white shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-700 shrink-0 ${isPlaying ? 'animate-spin-slow' : ''}`}>
            <div className="absolute inset-0 bg-slate-800"></div>
            <div className="absolute inset-2 border border-slate-700 rounded-full opacity-30"></div>
@@ -309,7 +309,7 @@ const LocalGameScreen = ({
         </div>
 
 
-        <div className="w-full max-w-xs bg-white p-3 rounded-[1.5rem] shadow-xl shadow-slate-200/50 shrink-0 relative">
+        <div className="w-full max-w-xs bg-white p-4 rounded-[1.5rem] shadow-xl shadow-slate-200/50 shrink-0 relative">
           <div className="relative pt-1">
             <input
               type="range"
@@ -330,7 +330,7 @@ const LocalGameScreen = ({
             )}
           </div>
           
-          <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+          <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-2">
             <span>{Math.floor(progress)}s</span>
             <span>{maxDuration}s</span>
           </div>
@@ -339,16 +339,16 @@ const LocalGameScreen = ({
             <button 
               onClick={handleReplay} 
               disabled={!hasFinishedFirstPlay}
-              className={`p-2.5 rounded-full transition ${!hasFinishedFirstPlay ? 'bg-slate-50 text-slate-300' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95'}`}
+              className={`p-3 rounded-full transition ${!hasFinishedFirstPlay ? 'bg-slate-50 text-slate-300' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95'}`}
             >
-              <RotateCcw size={18} />
+              <RotateCcw size={20} />
             </button>
             
             <button 
               onClick={togglePlay} 
-              className="p-3.5 bg-green-500 rounded-full text-white shadow-lg shadow-green-200 hover:bg-green-600 active:scale-95 transition transform"
+              className="p-4 bg-green-500 rounded-full text-white shadow-lg shadow-green-200 hover:bg-green-600 active:scale-95 transition transform"
             >
-              {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+              {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" />}
             </button>
           </div>
         </div>
