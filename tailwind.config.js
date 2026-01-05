@@ -6,20 +6,21 @@ export default {
   ],
   theme: {
     extend: {
-      colors: {
-        primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-        },
+      animation: {
+        'spin-slow': 'spin 8s linear infinite',
+        'fadeIn': 'fadeIn 0.3s ease-out',
+        'popIn': 'popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
       },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        popIn: {
+          '0%': { opacity: '0', transform: 'scale(0.8)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        }
+      }
     },
   },
   plugins: [],

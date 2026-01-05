@@ -1,0 +1,410 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { GameSettings, Player, Song } from '../types';
+import { ARTISTS } from '../constants';
+import Visualizer from './Visualizer';
+import { Play, Pause, RotateCcw, Check, X, Eye, ArrowRight, Lock, Clock } from 'lucide-react';
+
+interface LocalGameScreenProps {
+  settings: GameSettings;
+  players: Player[];
+  setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
+  currentSong: Song;
+  songIndex: number;
+  totalSongs: number;
+  onNextSong: () => void;
+  onEndGame: () => void;
+}
+
+const LocalGameScreen: React.FC<LocalGameScreenProps> = ({
+  settings,
+  players,
+  setPlayers,
+  currentSong,
+  songIndex,
+  totalSongs,
+  onNextSong,
+  onEndGame
+}) => {
+  const [gameState, setGameState] = useState<'standby' | 'playing'>('standby');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const [roundScoresRecorded, setRoundScoresRecorded] = useState<Record<string, boolean>>({});
+  
+  // Logic States
+  const [hasFinishedFirstPlay, setHasFinishedFirstPlay] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [isCountingDown, setIsCountingDown] = useState(false);
+
+  const timerRef = useRef<number | null>(null);
+  const countdownRef = useRef<number | null>(null);
+  const maxDuration = settings.isFullSong ? 180 : settings.durationSeconds; 
+
+  // Initial Game Setup
+  useEffect(() => {
+    if (songIndex === 0 && gameState === 'standby') {
+      // Stay in standby
+    } else {
+      setGameState('playing');
+    }
+    
+    // Reset Round State
+    setIsPlaying(true); // Auto start
+    setProgress(0);
+    setIsRevealed(false);
+    setRoundScoresRecorded({});
+    
+    // Reset Logic State
+    setHasFinishedFirstPlay(false);
+    setIsCountingDown(false);
+    setCountdown(settings.timeLimit > 0 ? settings.timeLimit : 0);
+    
+    stopTimer();
+    stopCountdown();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSong]);
+
+  // Playback Timer
+  useEffect(() => {
+    if (isPlaying) {
+      timerRef.current = window.setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= maxDuration) {
+            handlePlaybackFinish();
+            return maxDuration;
+          }
+          return prev + 0.1;
+        });
+      }, 100);
+    } else {
+      stopTimer();
+    }
+    return () => stopTimer();
+  }, [isPlaying, maxDuration]);
+
+  // Countdown Timer
+  useEffect(() => {
+    if (isCountingDown && countdown > 0) {
+      countdownRef.current = window.setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            stopCountdown();
+            setIsCountingDown(false);
+            setIsRevealed(true); // Auto reveal when time is up
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      stopCountdown();
+    }
+    return () => stopCountdown();
+  }, [isCountingDown, countdown]);
+
+  const stopTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  const stopCountdown = () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+  };
+
+  const handlePlaybackFinish = () => {
+    setIsPlaying(false);
+    
+    if (!hasFinishedFirstPlay) {
+      setHasFinishedFirstPlay(true);
+      if (settings.timeLimit > 0) {
+        setIsCountingDown(true);
+      }
+    }
+  };
+
+  const togglePlay = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleReplay = () => {
+    if (!hasFinishedFirstPlay) return;
+    setProgress(0);
+    setIsPlaying(true);
+  };
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!hasFinishedFirstPlay) return;
+    setProgress(parseFloat(e.target.value));
+  };
+
+  const handleScore = (playerId: string, correct: boolean) => {
+    setPlayers(prev => prev.map(p => {
+      if (p.id === playerId) {
+        return { ...p, score: correct ? p.score + 10 : p.score };
+      }
+      return p;
+    }));
+    setRoundScoresRecorded(prev => ({...prev, [playerId]: true}));
+  };
+
+  const addPlayer = () => {
+    setPlayers(prev => [
+      ...prev,
+      {
+        id: `p${Date.now()}`,
+        name: `玩家 ${prev.length + 1}`,
+        avatar: '',
+        score: 0,
+        isCurrentUser: true
+      }
+    ]);
+  };
+
+  const removePlayer = (id: string) => {
+    if (players.length > 1) {
+      setPlayers(prev => prev.filter(p => p.id !== id));
+    }
+  };
+
+  const updatePlayerName = (id: string, name: string) => {
+    setPlayers(prev => prev.map(p => p.id === id ? { ...p, name } : p));
+  };
+
+  const allPlayersScored = players.every(p => roundScoresRecorded[p.id]);
+
+  // LOBBY (Light Theme)
+  if (gameState === 'standby') {
+    return (
+      <div className="flex flex-col h-full bg-white font-sans p-6 overflow-hidden">
+        <div className="text-center mt-4 mb-4">
+          <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-2 animate-bounce">
+            <Play size={32} fill="currentColor" />
+          </div>
+          <h1 className="text-2xl font-black text-slate-800">准备开始</h1>
+        </div>
+
+        <div className="flex-1 overflow-y-auto mb-4 space-y-3 px-2">
+           {players.map((p, index) => (
+             <div key={p.id} className="flex items-center gap-2 bg-slate-50 p-3 rounded-2xl border-2 border-slate-100 shadow-sm">
+               <div className="w-6 h-6 flex items-center justify-center bg-slate-200 text-slate-500 rounded-full font-bold text-xs">
+                 {index + 1}
+               </div>
+               <input 
+                  type="text" 
+                  value={p.name}
+                  onChange={(e) => updatePlayerName(p.id, e.target.value)}
+                  className="flex-1 bg-white border-2 border-slate-200 focus:border-green-400 outline-none text-slate-800 px-3 py-1.5 rounded-xl font-bold text-sm"
+                  placeholder="输入名字"
+               />
+               {players.length > 1 && (
+                 <button onClick={() => removePlayer(p.id)} className="p-2 text-red-400 hover:text-red-500 bg-red-50 rounded-xl">
+                   <X size={16} />
+                 </button>
+               )}
+             </div>
+           ))}
+           
+           <button 
+             onClick={addPlayer} 
+             className="w-full mt-2 py-3 border-2 border-dashed border-slate-300 text-slate-400 rounded-2xl hover:border-green-400 hover:text-green-500 hover:bg-green-50 font-bold flex justify-center items-center gap-2 transition text-sm"
+           >
+             + 添加玩家
+           </button>
+        </div>
+
+        <button 
+          onClick={() => setGameState('playing')}
+          className="w-full py-4 bg-green-500 text-white text-lg font-black rounded-3xl shadow-xl shadow-green-200 hover:bg-green-600 active:scale-95 transition-transform"
+        >
+          🚀 开始游戏
+        </button>
+      </div>
+    );
+  }
+
+  // GAME SCREEN (Fixed Layout, No Scroll)
+  return (
+    <div className="flex flex-col h-full bg-slate-50 font-sans overflow-hidden">
+      {/* Top Bar */}
+      <div className="flex justify-between items-center p-4 bg-white shadow-sm rounded-b-3xl z-10 shrink-0">
+        <div className="flex items-center gap-2">
+           <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold border border-slate-200">
+             第 {songIndex + 1} / {totalSongs} 题
+           </span>
+        </div>
+        <button onClick={onEndGame} className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-full border border-red-100">
+          结束游戏
+        </button>
+      </div>
+
+      {/* Players Score Chips */}
+      <div className="py-2 overflow-x-auto no-scrollbar shrink-0 z-10 px-4">
+        <div className="flex items-center gap-2 min-w-max">
+          {players.map((p) => (
+             <div key={p.id} className="flex flex-col items-center min-w-[50px] bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100">
+                <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-lg mb-1">
+                   {p.avatar ? <img src={p.avatar} alt="" className="w-full h-full rounded-full"/> : '👤'}
+                </div>
+                <span className="text-[10px] font-bold text-slate-500 truncate w-full text-center">{p.name}</span>
+                <span className="text-[10px] font-black text-green-500">{p.score}</span>
+             </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Game Area (Flex Box to center content) */}
+      <div className="flex-1 flex flex-col items-center justify-evenly p-4 w-full">
+        
+        {/* Disc / Visual */}
+        <div className={`relative w-40 h-40 sm:w-56 sm:h-56 rounded-full border-4 border-white shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-700 shrink-0 ${isPlaying ? 'animate-spin-slow' : ''}`}>
+           <div className="absolute inset-0 bg-slate-800"></div>
+           {/* Vinyl Grooves */}
+           <div className="absolute inset-2 border border-slate-700 rounded-full opacity-30"></div>
+           <div className="absolute inset-6 border border-slate-700 rounded-full opacity-30"></div>
+           <div className="absolute inset-10 border border-slate-700 rounded-full opacity-30"></div>
+           
+           {/* Center Label Area */}
+           <div className={`absolute w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center z-20 shadow-inner transition-colors duration-300 ${isCountingDown && !isRevealed ? 'bg-orange-500' : 'bg-green-400'}`}>
+              {isRevealed ? (
+                 <img src={currentSong.cover} alt="Cover" className="w-full h-full rounded-full object-cover" />
+              ) : (
+                <>
+                   {isCountingDown ? (
+                     <div className="flex flex-col items-center justify-center">
+                        <span className="text-white font-black text-xl sm:text-2xl animate-pulse">{countdown}</span>
+                     </div>
+                   ) : (
+                     <span className="text-2xl font-black text-white">?</span>
+                   )}
+                </>
+              )}
+           </div>
+        </div>
+
+        {/* Visualizer */}
+        <div className="w-full h-8 flex items-end justify-center opacity-60 shrink-0">
+          <Visualizer isPlaying={isPlaying} />
+        </div>
+
+        {/* Controls Card (Compact) */}
+        <div className="w-full max-w-xs bg-white p-4 rounded-[1.5rem] shadow-xl shadow-slate-200/50 space-y-2 shrink-0 relative">
+          
+          {/* Progress Slider */}
+          <div className="relative pt-1">
+            <input
+              type="range"
+              min="0"
+              max={maxDuration}
+              step="0.1"
+              value={progress}
+              onChange={handleSliderChange}
+              disabled={!hasFinishedFirstPlay} // Disabled on first play
+              className={`w-full h-2 rounded-full appearance-none ${!hasFinishedFirstPlay ? 'bg-slate-200 cursor-not-allowed' : 'bg-slate-100 cursor-pointer accent-green-500'}`}
+            />
+            {/* Lock Overlay for Slider */}
+            {!hasFinishedFirstPlay && (
+              <div className="absolute inset-0 -top-2 flex items-center justify-center pointer-events-none">
+                 <span className="text-[9px] font-bold text-slate-400 bg-white/90 px-2 py-0.5 rounded-full backdrop-blur-sm shadow-sm flex items-center gap-1 border border-slate-100">
+                   <Lock size={8} /> 播放完解锁
+                 </span>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-between text-[10px] font-bold text-slate-400">
+            <span>{Math.floor(progress)}s</span>
+            <span>{maxDuration}s</span>
+          </div>
+
+          <div className="flex justify-center gap-6 items-center pt-1">
+            <button 
+              onClick={handleReplay} 
+              disabled={!hasFinishedFirstPlay}
+              className={`p-2.5 rounded-full transition ${!hasFinishedFirstPlay ? 'bg-slate-50 text-slate-300' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 active:scale-95'}`}
+            >
+              <RotateCcw size={18} />
+            </button>
+            
+            <button 
+              onClick={togglePlay} 
+              className="p-3.5 bg-green-500 rounded-full text-white shadow-lg shadow-green-200 hover:bg-green-600 active:scale-95 transition transform"
+            >
+              {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Reveal Button Area (Fixed at bottom, minimal height) */}
+      <div className="p-4 bg-white/50 backdrop-blur-sm shrink-0 flex justify-center pb-safe">
+        {!isRevealed ? (
+            <button 
+            onClick={() => setIsRevealed(true)}
+            className="px-6 py-3 bg-yellow-400 text-yellow-900 font-bold rounded-full shadow-lg hover:bg-yellow-500 flex items-center gap-2 text-sm active:scale-95 transition-transform"
+            >
+            <Eye size={18} /> {isCountingDown ? '提前查看' : '查看答案'}
+            </button>
+        ) : null}
+      </div>
+
+      {/* Reveal/Scoring Sheet Modal */}
+      {isRevealed && (
+          <div className="absolute inset-0 z-50 flex flex-col justify-end bg-black/20 backdrop-blur-[1px]">
+            <div className="bg-white rounded-t-[2rem] shadow-2xl h-[70vh] flex flex-col animate-fadeIn">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem]">
+                    <div className="flex-1">
+                        <h3 className="text-lg font-black text-slate-800">《{currentSong.title}》</h3>
+                        <p className="text-xs font-bold text-slate-400">{ARTISTS.find(a => a.id === currentSong.artistId)?.name}</p>
+                    </div>
+                     <button 
+                        onClick={() => {
+                            // Only allow closing if we haven't scored everyone, strictly speaking we usually stay here until next song
+                            // But for UX let's allow peek if needed, or just keep it open.
+                            // Current request implies flow: Reveal -> Score -> Next. 
+                            // So no close button needed really, just Next button.
+                        }}
+                        className="hidden"
+                    >
+                    </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                    {players.map(p => (
+                        <div key={p.id} className="flex items-center justify-between bg-white p-2.5 pr-2 rounded-xl border border-slate-100 shadow-sm">
+                            <span className="font-bold text-slate-700 text-sm pl-2">{p.name}</span>
+                            
+                            {roundScoresRecorded[p.id] ? (
+                                <span className={`text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1 ${players.find(pl => pl.id === p.id)?.score && players.find(pl => pl.id === p.id)!.score % 10 === 0 && roundScoresRecorded[p.id] ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
+                                    {players.find(pl => pl.id === p.id)?.score && players.find(pl => pl.id === p.id)!.score % 10 === 0 && roundScoresRecorded[p.id] ? '正确' : '错误'}
+                                </span>
+                            ) : (
+                                <div className="flex gap-2">
+                                    <button onClick={() => handleScore(p.id, true)} className="w-8 h-8 flex items-center justify-center bg-green-100 text-green-600 rounded-lg active:scale-95"><Check size={16} /></button>
+                                    <button onClick={() => handleScore(p.id, false)} className="w-8 h-8 flex items-center justify-center bg-red-100 text-red-500 rounded-lg active:scale-95"><X size={16} /></button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                <div className="p-4 border-t border-slate-100">
+                    {allPlayersScored ? (
+                        <button 
+                            onClick={songIndex + 1 >= totalSongs ? onEndGame : onNextSong}
+                            className="w-full py-3 bg-blue-500 text-white text-base font-bold rounded-2xl shadow-lg shadow-blue-200 flex items-center justify-center gap-2 active:scale-95 transition-transform"
+                        >
+                            {songIndex + 1 >= totalSongs ? '查看结果' : '下一题'} <ArrowRight size={18}/>
+                        </button>
+                    ) : (
+                         <div className="text-center py-3 bg-slate-100 rounded-2xl text-slate-400 font-bold text-xs">
+                            请记录所有玩家得分
+                        </div>
+                    )}
+                </div>
+            </div>
+          </div>
+      )}
+    </div>
+  );
+};
+
+export default LocalGameScreen;

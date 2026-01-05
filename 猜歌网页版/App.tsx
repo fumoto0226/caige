@@ -1,24 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SetupScreen from './components/SetupScreen';
 import LocalGameScreen from './components/LocalGameScreen';
 import OnlineGameScreen from './components/OnlineGameScreen';
 import ResultsScreen from './components/ResultsScreen';
-import { getAllSongs } from './data/songs';
+import { GameMode, GameSettings, PlaybackPosition, Player, ScreenState, Song } from './types';
+import { SONGS } from './constants';
 
-const GameMode = {
-  LOCAL: 'LOCAL',
-  ONLINE: 'ONLINE'
-};
-
-const PlaybackPosition = {
-  RANDOM: 'RANDOM',
-  START: 'START'
-};
-
-const App = () => {
-  const [screen, setScreen] = useState('setup');
+const App: React.FC = () => {
+  const [screen, setScreen] = useState<ScreenState>('setup');
   
-  const [settings, setSettings] = useState({
+  // Settings State
+  const [settings, setSettings] = useState<GameSettings>({
     mode: GameMode.LOCAL,
     selectedArtistIds: ['1'],
     durationSeconds: 15,
@@ -29,13 +21,13 @@ const App = () => {
     playerCount: 1,
   });
 
-  const [gameSongs, setGameSongs] = useState([]);
+  // Game Data State
+  const [gameSongs, setGameSongs] = useState<Song[]>([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
-  const [players, setPlayers] = useState([]);
+  const [players, setPlayers] = useState<Player[]>([]);
 
   const prepareSongs = () => {
-    const allSongs = getAllSongs();
-    const filteredSongs = allSongs.filter(s => settings.selectedArtistIds.includes(s.artistId));
+    const filteredSongs = SONGS.filter(s => settings.selectedArtistIds.includes(s.artistId));
     const shuffled = [...filteredSongs].sort(() => 0.5 - Math.random()).slice(0, settings.questionCount);
     
     if (shuffled.length === 0) {
@@ -56,20 +48,20 @@ const App = () => {
       setPlayers([{
         id: 'p1',
         name: '玩家 1',
-        avatar: '/caige/img/zjl.png',
+        avatar: `https://picsum.photos/seed/p1/100/100`,
         score: 0,
         isCurrentUser: true
       }]);
     } else {
       setPlayers([
-        { id: 'me', name: '我 (房主)', avatar: '/caige/img/zjl.png', score: 0, isCurrentUser: true }
+        { id: 'me', name: '我 (房主)', avatar: 'https://picsum.photos/seed/me/100/100', score: 0, isCurrentUser: true }
       ]);
     }
 
     setScreen('game');
   };
 
-  const handleJoinGame = (roomId) => {
+  const handleJoinGame = (roomId: string) => {
     const shuffled = prepareSongs(); 
     if (!shuffled) return;
 
@@ -78,8 +70,8 @@ const App = () => {
     setSettings(prev => ({ ...prev, mode: GameMode.ONLINE }));
 
     setPlayers([
-      { id: 'host', name: '房主', avatar: '/caige/img/zjl.png', score: 0, isCurrentUser: false },
-      { id: 'me', name: '我', avatar: '/caige/img/zjl.png', score: 0, isCurrentUser: true }
+      { id: 'host', name: '房主', avatar: 'https://picsum.photos/seed/host/100/100', score: 0, isCurrentUser: false },
+      { id: 'me', name: '我', avatar: 'https://picsum.photos/seed/me_join/100/100', score: 0, isCurrentUser: true }
     ]);
 
     setScreen('game');
@@ -113,7 +105,7 @@ const App = () => {
 
   return (
     <div className="w-full h-screen bg-slate-50 flex justify-center items-center font-sans">
-      {/* Mobile Container Simulator */}
+      {/* Mobile Container Simulator - Updated styling for softer look */}
       <div className="w-full max-w-md h-full bg-white shadow-2xl overflow-hidden relative sm:rounded-[2.5rem] sm:h-[92vh] sm:border-8 sm:border-slate-100 ring-1 ring-slate-900/5">
         
         {screen === 'setup' && (
@@ -122,8 +114,7 @@ const App = () => {
             setSettings={setSettings} 
             onStart={handleStartGame}
             onJoin={handleJoinGame}
-            GameMode={GameMode}
-            PlaybackPosition={PlaybackPosition}
+            maxSongs={SONGS.length}
           />
         )}
 
