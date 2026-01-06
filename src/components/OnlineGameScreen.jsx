@@ -34,7 +34,8 @@ const OnlineGameScreen = ({
   const countdownRef = useRef(null);
 
   const maxDuration = settings.isFullSong ? 180 : settings.durationSeconds;
-  const isHost = players.find(p => p.isCurrentUser)?.id === players[0]?.id;
+  // 使用 currentUserId 来判断是否是房主
+  const isHost = currentUserId && players.length > 0 && players[0]?.id === currentUserId;
 
   // Setup audio
   useEffect(() => {
@@ -192,7 +193,7 @@ const OnlineGameScreen = ({
     if (countdownRef.current) clearInterval(countdownRef.current);
   };
 
-  const handlePlaybackFinish = () => {
+  const handlePlaybackFinish = async () => {
     setIsPlaying(false);
     if (audioRef.current) {
       audioRef.current.pause();
@@ -201,6 +202,20 @@ const OnlineGameScreen = ({
         setHasFinishedFirstPlay(true);
         if (settings.timeLimit > 0) {
             setIsCountingDown(true);
+        }
+        
+        // 房主更新第一遍播放完成状态到 Firebase
+        if (roomId && isHost) {
+          await updateGameState(roomId, {
+            active: hasGameStarted,
+            currentIndex: songIndex,
+            isPlaying: false,
+            progress: progress,
+            segmentStart: 0,
+            hasFinishedFirstPlay: true,
+            isCountingDown: settings.timeLimit > 0,
+            countdown: settings.timeLimit || 0,
+          });
         }
     }
   };
@@ -238,11 +253,11 @@ const OnlineGameScreen = ({
     if (!inputVal.trim()) return;
 
     const isCorrect = inputVal.toLowerCase().includes(currentSong.title.toLowerCase());
-    const currentUser = players.find(p => p.isCurrentUser);
+    const currentUser = players.find(p => p.id === currentUserId);
 
     const newMessage = {
       id: Date.now().toString(),
-      playerId: currentUser?.id || 'unknown',
+      playerId: currentUserId || 'unknown',
       playerName: currentUser?.name || '我',
       text: inputVal,
       type: 'user',
@@ -272,13 +287,13 @@ const OnlineGameScreen = ({
         }
         
         // 更新分数（这里应该也同步到 Firebase）
-        setPlayers(prev => prev.map(p => p.isCurrentUser ? { ...p, score: p.score + 20 } : p));
+        setPlayers(prev => prev.map(p => p.id === currentUserId ? { ...p, score: p.score + 20 } : p));
       }, 500);
     }
   };
 
   const handleSliderChange = async (e) => {
-    // 只有房主可以拖动进度条
+    // 只有房主可以拖动进度条，且必须播放完第一遍
     if (!isHost || !hasGameStarted || !hasFinishedFirstPlay) return;
     
     const newTime = parseFloat(e.target.value);
@@ -385,7 +400,8 @@ const OnlineGameScreen = ({
         <div className="flex items-center gap-3">
           <button 
              onClick={async () => {
-               if (!hasGameStarted || !isHost) return; // 只有房主可以控制
+               // 只有房主可以控制，且第一遍播放完才能暂停
+               if (!hasGameStarted || !isHost || !hasFinishedFirstPlay) return;
                const newPlayingState = !isPlaying;
                setIsPlaying(newPlayingState);
                
@@ -403,8 +419,8 @@ const OnlineGameScreen = ({
                  });
                }
              }} 
-             disabled={!hasGameStarted || !isHost}
-             className={`p-2.5 rounded-full shadow-md active:scale-95 transition flex-shrink-0 ${hasGameStarted && isHost ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' : 'bg-slate-100 text-slate-300'}`}
+             disabled={!hasGameStarted || !isHost || !hasFinishedFirstPlay}
+             className={`p-2.5 rounded-full shadow-md active:scale-95 transition flex-shrink-0 ${hasGameStarted && isHost && hasFinishedFirstPlay ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' : 'bg-slate-100 text-slate-300'}`}
           >
             {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
           </button>
@@ -511,7 +527,7 @@ const OnlineGameScreen = ({
               </div>
             );
           }
-          const isMe = msg.playerId === players.find(p => p.isCurrentUser)?.id;
+          const isMe = msg.playerId === currentUserId;
           return (
             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-popIn`}>
               <div className={`max-w-[85%] px-3 py-2 text-sm font-medium shadow-sm break-words relative ${
