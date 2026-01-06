@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ARTISTS } from '../data/songs';
 import { Play, Pause, Send, Share2, PlayCircle, Crown, LogOut, Clock, Lock, Eye, X, Check } from 'lucide-react';
+import InviteModal from './InviteModal';
 
 const OnlineGameScreen = ({
   settings,
@@ -10,7 +11,9 @@ const OnlineGameScreen = ({
   songIndex,
   totalSongs,
   onNextSong,
-  onEndGame
+  onEndGame,
+  roomId,
+  currentUserId
 }) => {
   const [hasGameStarted, setHasGameStarted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -21,6 +24,8 @@ const OnlineGameScreen = ({
   const [hasFinishedFirstPlay, setHasFinishedFirstPlay] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [isCountingDown, setIsCountingDown] = useState(false);
+  
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const messagesEndRef = useRef(null);
   const audioRef = useRef(null);
@@ -255,11 +260,14 @@ const OnlineGameScreen = ({
                 <LogOut size={16} />
             </button>
             <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Room #8821</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Room #{roomId || '----'}</span>
                 <span className="font-black text-slate-800 text-sm">第 {songIndex + 1}/{totalSongs} 首</span>
             </div>
         </div>
-        <button className="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 transition-colors">
+        <button 
+          onClick={() => setShowInviteModal(true)}
+          className="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 transition-colors active:scale-95"
+        >
           <Share2 size={14} /> 邀请
         </button>
       </div>
@@ -431,6 +439,13 @@ const OnlineGameScreen = ({
         </form>
       </div>
 
+      {/* 邀请弹窗 */}
+      {showInviteModal && roomId && (
+        <InviteModal
+          roomId={roomId}
+          onClose={() => setShowInviteModal(false)}
+        />
+      )}
     </div>
   );
 };

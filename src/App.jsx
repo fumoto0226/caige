@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SetupScreen from './components/SetupScreen';
 import LocalGameScreen from './components/LocalGameScreen';
 import OnlineGameScreen from './components/OnlineGameScreen';
 import ResultsScreen from './components/ResultsScreen';
+import UsernameModal from './components/UsernameModal';
 import { getAllSongs } from './data/songs';
+import { createRoom, joinRoom, leaveRoom, subscribeToRoom } from './utils/roomManager';
 
 const GameMode = {
   LOCAL: 'LOCAL',
@@ -40,6 +42,33 @@ const App = () => {
   const [gameSongs, setGameSongs] = useState([]);
   const [currentSongIndex, setCurrentSongIndex] = useState(0);
   const [players, setPlayers] = useState([]);
+  
+  // 线上游戏相关状态
+  const [currentRoomId, setCurrentRoomId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [roomUnsubscribe, setRoomUnsubscribe] = useState(null);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [pendingRoomAction, setPendingRoomAction] = useState(null); // { type: 'create' | 'join', roomId?: string }
+
+  // 检查 URL 参数中是否有房间号
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomIdFromUrl = urlParams.get('room');
+    if (roomIdFromUrl) {
+      // 显示用户名输入弹窗
+      setPendingRoomAction({ type: 'join', roomId: roomIdFromUrl });
+      setShowUsernameModal(true);
+    }
+  }, []);
+
+  // 清理房间订阅
+  useEffect(() => {
+    return () => {
+      if (roomUnsubscribe) {
+        roomUnsubscribe();
+      }
+    };
+  }, [roomUnsubscribe]);
 
   const prepareSongs = () => {
     const allSongs = getAllSongs();
@@ -53,7 +82,7 @@ const App = () => {
     return shuffled;
   };
 
-  const handleStartGame = () => {
+  const handleStartGame = async () => {
     const shuffled = prepareSongs();
     if (!shuffled) return;
 
@@ -61,6 +90,7 @@ const App = () => {
     setCurrentSongIndex(0);
 
     if (settings.mode === GameMode.LOCAL) {
+      // 本地游戏
       setPlayers([{
         id: 'p1',
         name: '玩家 1',
@@ -68,29 +98,83 @@ const App = () => {
         score: 0,
         isCurrentUser: true
       }]);
+      setScreen('game');
     } else {
-      setPlayers([
-        { id: 'me', name: '我 (房主)', avatar: getRandomEmoji(), score: 0, isCurrentUser: true }
-      ]);
+      // 线上游戏 - 显示用户名输入弹窗
+      setPendingRoomAction({ type: 'create' });
+      setShowUsernameModal(true);
     }
+  };
 
-    setScreen('game');
+  const handleUsernameSubmit = async (username) => {
+    setShowUsernameModal(false);
+    
+    const userId = `user-${Date.now()}`;
+    setCurrentUserId(userId);
+    
+    const player = {
+      id: userId,
+      name: username,
+      avatar: getRandomEmoji(),
+      score: 0,
+      isCurrentUser: true
+    };
+
+    try {
+      if (pendingRoomAction.type === 'create') {
+        // 创建房间
+        const roomId = await createRoom(settings, player);
+        setCurrentRoomId(roomId);
+        
+        // 订阅房间变化
+        const unsubscribe = subscribeToRoom(roomId, (roomData) => {
+          if (!roomData) {
+            // 房间被删除
+            alert('房间已关闭');
+            handleHome();
+            return;
+          }
+          
+          setPlayers(roomData.players);
+          // 更新其他游戏状态...
+        });
+        setRoomUnsubscribe(() => unsubscribe);
+        
+        setPlayers([player]);
+        setScreen('game');
+      } else if (pendingRoomAction.type === 'join') {
+        // 加入房间
+        await joinRoom(pendingRoomAction.roomId, player);
+        setCurrentRoomId(pendingRoomAction.roomId);
+        
+        // 订阅房间变化
+        const unsubscribe = subscribeToRoom(pendingRoomAction.roomId, (roomData) => {
+          if (!roomData) {
+            alert('房间已关闭');
+            handleHome();
+            return;
+          }
+          
+          setPlayers(roomData.players);
+          setSettings(roomData.settings);
+          setGameSongs(prepareSongs()); // 使用房间的设置准备歌曲
+          // 更新其他游戏状态...
+        });
+        setRoomUnsubscribe(() => unsubscribe);
+        
+        setScreen('game');
+      }
+    } catch (error) {
+      alert(error.message);
+    }
+    
+    setPendingRoomAction(null);
   };
 
   const handleJoinGame = (roomId) => {
-    const shuffled = prepareSongs(); 
-    if (!shuffled) return;
-
-    setGameSongs(shuffled);
-    setCurrentSongIndex(0);
-    setSettings(prev => ({ ...prev, mode: GameMode.ONLINE }));
-
-    setPlayers([
-      { id: 'host', name: '房主', avatar: getRandomEmoji(), score: 0, isCurrentUser: false },
-      { id: 'me', name: '我', avatar: getRandomEmoji(), score: 0, isCurrentUser: true }
-    ]);
-
-    setScreen('game');
+    // 显示用户名输入弹窗
+    setPendingRoomAction({ type: 'join', roomId });
+    setShowUsernameModal(true);
   };
 
   const handleNextSong = () => {
@@ -106,17 +190,52 @@ const App = () => {
   };
 
   const handleRestart = () => {
-    setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
-    const shuffled = prepareSongs();
-    if (shuffled) {
-      setGameSongs(shuffled);
-      setCurrentSongIndex(0);
-      setScreen('game');
+    if (settings.mode === GameMode.ONLINE && currentRoomId) {
+      // 线上游戏重开 - 保持在同一个房间，重置分数
+      setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
+      const shuffled = prepareSongs();
+      if (shuffled) {
+        setGameSongs(shuffled);
+        setCurrentSongIndex(0);
+        setScreen('game');
+      }
+    } else {
+      // 本地游戏重开
+      setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
+      const shuffled = prepareSongs();
+      if (shuffled) {
+        setGameSongs(shuffled);
+        setCurrentSongIndex(0);
+        setScreen('game');
+      }
     }
   };
 
-  const handleHome = () => {
+  const handleHome = async () => {
+    // 如果在线上房间中，先离开房间
+    if (currentRoomId && currentUserId) {
+      try {
+        await leaveRoom(currentRoomId, currentUserId);
+      } catch (error) {
+        console.error('离开房间失败:', error);
+      }
+      
+      if (roomUnsubscribe) {
+        roomUnsubscribe();
+        setRoomUnsubscribe(null);
+      }
+      
+      setCurrentRoomId(null);
+      setCurrentUserId(null);
+    }
+    
     setScreen('setup');
+    setPlayers([]);
+    setGameSongs([]);
+    setCurrentSongIndex(0);
+    
+    // 清理 URL 参数
+    window.history.replaceState({}, document.title, window.location.pathname);
   };
 
   return (
@@ -158,6 +277,8 @@ const App = () => {
             totalSongs={gameSongs.length}
             onNextSong={handleNextSong}
             onEndGame={handleEndGame}
+            roomId={currentRoomId}
+            currentUserId={currentUserId}
           />
         )}
 
@@ -170,6 +291,17 @@ const App = () => {
         )}
 
       </div>
+      
+      {/* 用户名输入弹窗 */}
+      {showUsernameModal && (
+        <UsernameModal
+          onSubmit={handleUsernameSubmit}
+          onCancel={() => {
+            setShowUsernameModal(false);
+            setPendingRoomAction(null);
+          }}
+        />
+      )}
     </div>
   );
 };
