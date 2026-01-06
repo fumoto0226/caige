@@ -45,7 +45,7 @@ export const generateUniqueRoomId = async () => {
 };
 
 // 创建房间
-export const createRoom = async (settings, hostPlayer) => {
+export const createRoom = async (settings, hostPlayer, songList) => {
   const roomId = await generateUniqueRoomId();
   
   const roomData = {
@@ -54,12 +54,16 @@ export const createRoom = async (settings, hostPlayer) => {
     hostId: hostPlayer.id,
     players: [hostPlayer],
     messages: [],
+    songList: songList || [], // 保存歌曲列表
     gameState: {
-      active: true,
+      active: false,
       currentIndex: 0,
       isPlaying: false,
       progress: 0,
       segmentStart: 0,
+      hasFinishedFirstPlay: false,
+      isCountingDown: false,
+      countdown: 0,
     },
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()

@@ -122,9 +122,14 @@ const App = () => {
 
     try {
       if (pendingRoomAction.type === 'create') {
-        // 创建房间
-        const roomId = await createRoom(settings, player);
+        // 创建房间 - 房主准备歌曲
+        const shuffled = prepareSongs();
+        if (!shuffled) return;
+        
+        const roomId = await createRoom(settings, player, shuffled);
         setCurrentRoomId(roomId);
+        setGameSongs(shuffled);
+        setCurrentSongIndex(0);
         
         // 订阅房间变化
         const unsubscribe = subscribeToRoom(roomId, (roomData) => {
@@ -136,16 +141,20 @@ const App = () => {
           }
           
           setPlayers(roomData.players);
-          // 更新其他游戏状态...
         });
         setRoomUnsubscribe(() => unsubscribe);
         
         setPlayers([player]);
         setScreen('game');
       } else if (pendingRoomAction.type === 'join') {
-        // 加入房间
-        await joinRoom(pendingRoomAction.roomId, player);
+        // 加入房间 - 使用房间的歌曲列表
+        const roomData = await joinRoom(pendingRoomAction.roomId, player);
         setCurrentRoomId(pendingRoomAction.roomId);
+        
+        // 使用房间的设置和歌曲
+        setSettings(roomData.settings);
+        setGameSongs(roomData.songList || []);
+        setCurrentSongIndex(roomData.gameState?.currentIndex || 0);
         
         // 订阅房间变化
         const unsubscribe = subscribeToRoom(pendingRoomAction.roomId, (roomData) => {
@@ -156,9 +165,10 @@ const App = () => {
           }
           
           setPlayers(roomData.players);
-          setSettings(roomData.settings);
-          setGameSongs(prepareSongs()); // 使用房间的设置准备歌曲
-          // 更新其他游戏状态...
+          // 同步游戏状态
+          if (roomData.gameState) {
+            setCurrentSongIndex(roomData.gameState.currentIndex || 0);
+          }
         });
         setRoomUnsubscribe(() => unsubscribe);
         

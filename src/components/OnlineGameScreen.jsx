@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ARTISTS } from '../data/songs';
 import { Play, Pause, Send, Share2, PlayCircle, Crown, LogOut, Clock, Lock, Eye, X, Check } from 'lucide-react';
 import InviteModal from './InviteModal';
+import { updateGameState, sendMessage, subscribeToRoom } from '../utils/roomManager';
 
 const OnlineGameScreen = ({
   settings,
@@ -48,9 +49,51 @@ const OnlineGameScreen = ({
     };
   }, []);
 
+  // 订阅房间变化 - 同步游戏状态和消息
+  useEffect(() => {
+    if (!roomId) return;
+    
+    const unsubscribe = subscribeToRoom(roomId, (roomData) => {
+      if (!roomData) return;
+      
+      // 同步消息
+      if (roomData.messages && roomData.messages.length > 0) {
+        setMessages(roomData.messages);
+      }
+      
+      // 非房主同步游戏状态
+      if (!isHost && roomData.gameState) {
+        const state = roomData.gameState;
+        
+        // 同步播放状态
+        if (state.isPlaying !== isPlaying) {
+          setIsPlaying(state.isPlaying);
+        }
+        
+        // 同步进度
+        if (Math.abs(state.progress - progress) > 0.5 && audioRef.current) {
+          setProgress(state.progress);
+          audioRef.current.currentTime = state.progress;
+        }
+        
+        // 同步是否开始
+        if (state.active !== hasGameStarted) {
+          setHasGameStarted(state.active);
+        }
+        
+        // 同步其他状态
+        setHasFinishedFirstPlay(state.hasFinishedFirstPlay || false);
+        setIsCountingDown(state.isCountingDown || false);
+        setCountdown(state.countdown || 0);
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [roomId, isHost]);
+
   // Initialize messages
   useEffect(() => {
-    if (songIndex === 0) {
+    if (songIndex === 0 && messages.length === 0) {
       setMessages([{
         id: 'sys-start',
         playerId: 'system',
@@ -162,19 +205,35 @@ const OnlineGameScreen = ({
     }
   };
 
-  const handleHostStart = () => {
+  const handleHostStart = async () => {
     setHasGameStarted(true);
     setIsPlaying(true);
-    setMessages(prev => [...prev, {
-      id: Date.now().toString(),
-      playerId: 'system',
-      playerName: 'System',
-      text: '🎮 游戏开始！请听歌猜名！',
-      type: 'system'
-    }]);
+    
+    // 房主更新游戏状态到 Firebase
+    if (roomId && isHost) {
+      await updateGameState(roomId, {
+        active: true,
+        currentIndex: songIndex,
+        isPlaying: true,
+        progress: 0,
+        segmentStart: 0,
+        hasFinishedFirstPlay: false,
+        isCountingDown: false,
+        countdown: 0,
+      });
+      
+      await sendMessage(roomId, {
+        id: Date.now().toString(),
+        playerId: 'system',
+        playerName: 'System',
+        text: '🎮 游戏开始！请听歌猜名！',
+        type: 'system',
+        timestamp: Date.now()
+      });
+    }
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputVal.trim()) return;
 
@@ -186,33 +245,60 @@ const OnlineGameScreen = ({
       playerId: currentUser?.id || 'unknown',
       playerName: currentUser?.name || '我',
       text: inputVal,
-      type: 'user'
+      type: 'user',
+      timestamp: Date.now()
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    // 发送消息到 Firebase
+    if (roomId) {
+      await sendMessage(roomId, newMessage);
+    }
+    
     setInputVal('');
 
     if (isCorrect && hasGameStarted) {
-      setTimeout(() => {
-        setMessages(prev => [...prev, {
+      setTimeout(async () => {
+        const correctMessage = {
           id: Date.now().toString(),
           playerId: 'system',
           playerName: 'System',
           text: `🎉 ${currentUser?.name} 猜对了！歌名是《${currentSong.title}》`,
-          type: 'correct'
-        }]);
+          type: 'correct',
+          timestamp: Date.now()
+        };
         
+        if (roomId) {
+          await sendMessage(roomId, correctMessage);
+        }
+        
+        // 更新分数（这里应该也同步到 Firebase）
         setPlayers(prev => prev.map(p => p.isCurrentUser ? { ...p, score: p.score + 20 } : p));
       }, 500);
     }
   };
 
-  const handleSliderChange = (e) => {
-    if (!hasGameStarted || !hasFinishedFirstPlay) return;
+  const handleSliderChange = async (e) => {
+    // 只有房主可以拖动进度条
+    if (!isHost || !hasGameStarted || !hasFinishedFirstPlay) return;
+    
     const newTime = parseFloat(e.target.value);
     setProgress(newTime);
     if (audioRef.current) {
       audioRef.current.currentTime = newTime;
+    }
+    
+    // 更新到 Firebase
+    if (roomId) {
+      await updateGameState(roomId, {
+        active: hasGameStarted,
+        currentIndex: songIndex,
+        isPlaying: isPlaying,
+        progress: newTime,
+        segmentStart: 0,
+        hasFinishedFirstPlay: hasFinishedFirstPlay,
+        isCountingDown: isCountingDown,
+        countdown: countdown,
+      });
     }
   };
 
@@ -298,9 +384,27 @@ const OnlineGameScreen = ({
       <div className="mx-4 mt-2 bg-white rounded-2xl p-3 shadow-lg shadow-slate-200/50 z-10 shrink-0 border border-slate-100 relative">
         <div className="flex items-center gap-3">
           <button 
-             onClick={() => hasGameStarted && setIsPlaying(!isPlaying)} 
-             disabled={!hasGameStarted}
-             className={`p-2.5 rounded-full shadow-md active:scale-95 transition flex-shrink-0 ${hasGameStarted ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' : 'bg-slate-100 text-slate-300'}`}
+             onClick={async () => {
+               if (!hasGameStarted || !isHost) return; // 只有房主可以控制
+               const newPlayingState = !isPlaying;
+               setIsPlaying(newPlayingState);
+               
+               // 更新到 Firebase
+               if (roomId) {
+                 await updateGameState(roomId, {
+                   active: hasGameStarted,
+                   currentIndex: songIndex,
+                   isPlaying: newPlayingState,
+                   progress: progress,
+                   segmentStart: 0,
+                   hasFinishedFirstPlay: hasFinishedFirstPlay,
+                   isCountingDown: isCountingDown,
+                   countdown: countdown,
+                 });
+               }
+             }} 
+             disabled={!hasGameStarted || !isHost}
+             className={`p-2.5 rounded-full shadow-md active:scale-95 transition flex-shrink-0 ${hasGameStarted && isHost ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' : 'bg-slate-100 text-slate-300'}`}
           >
             {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
           </button>
@@ -425,14 +529,13 @@ const OnlineGameScreen = ({
             type="text"
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
-            placeholder={hasGameStarted ? "猜猜是哪首歌..." : "等待中..."}
+            placeholder="猜猜是哪首歌..."
             className="flex-1 bg-slate-100 text-slate-800 rounded-full pl-4 pr-4 py-2.5 font-bold focus:outline-none focus:ring-2 focus:ring-green-400 focus:bg-white transition-all placeholder-slate-400 text-sm"
-            disabled={!hasGameStarted}
           />
           <button 
             type="submit" 
             className="bg-green-500 text-white w-10 h-10 rounded-full shadow-lg shadow-green-200 hover:bg-green-600 disabled:opacity-50 disabled:shadow-none transition-all flex items-center justify-center active:scale-95" 
-            disabled={!inputVal.trim() || !hasGameStarted}
+            disabled={!inputVal.trim()}
           >
             <Send size={18} className="ml-0.5" />
           </button>
