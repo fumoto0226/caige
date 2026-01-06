@@ -25,6 +25,26 @@ const getRandomEmoji = () => {
   return EMOJI_LIST[Math.floor(Math.random() * EMOJI_LIST.length)];
 };
 
+// 获取或创建持久化用户ID
+const getPersistentUserId = () => {
+  let userId = localStorage.getItem('caige_user_id');
+  if (!userId) {
+    userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('caige_user_id', userId);
+  }
+  return userId;
+};
+
+// 获取持久化的用户名
+const getPersistentUsername = () => {
+  return localStorage.getItem('caige_username') || '';
+};
+
+// 保存用户名
+const savePersistentUsername = (username) => {
+  localStorage.setItem('caige_username', username);
+};
+
 const App = () => {
   const [screen, setScreen] = useState('setup');
   
@@ -45,10 +65,11 @@ const App = () => {
   
   // 线上游戏相关状态
   const [currentRoomId, setCurrentRoomId] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(() => getPersistentUserId());
   const [roomUnsubscribe, setRoomUnsubscribe] = useState(null);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [pendingRoomAction, setPendingRoomAction] = useState(null); // { type: 'create' | 'join', roomId?: string }
+  const [savedUsername, setSavedUsername] = useState(() => getPersistentUsername());
 
   // 检查 URL 参数中是否有房间号
   useEffect(() => {
@@ -69,32 +90,6 @@ const App = () => {
       }
     };
   }, [roomUnsubscribe]);
-
-  // 页面关闭或刷新时自动退出房间
-  useEffect(() => {
-    const handleBeforeUnload = async (e) => {
-      if (currentRoomId && currentUserId) {
-        // 使用 navigator.sendBeacon 发送退出请求（更可靠）
-        try {
-          await leaveRoom(currentRoomId, currentUserId);
-        } catch (error) {
-          console.error('退出房间失败:', error);
-        }
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      // 组件卸载时也退出房间
-      if (currentRoomId && currentUserId) {
-        leaveRoom(currentRoomId, currentUserId).catch(err => 
-          console.error('组件卸载时退出房间失败:', err)
-        );
-      }
-    };
-  }, [currentRoomId, currentUserId]);
 
   const prepareSongs = () => {
     const allSongs = getAllSongs();
@@ -135,8 +130,12 @@ const App = () => {
   const handleUsernameSubmit = async (username) => {
     setShowUsernameModal(false);
     
-    const userId = `user-${Date.now()}`;
-    setCurrentUserId(userId);
+    // 使用持久化的用户ID
+    const userId = currentUserId;
+    
+    // 保存用户名到localStorage
+    savePersistentUsername(username);
+    setSavedUsername(username);
     
     const player = {
       id: userId,
@@ -332,6 +331,7 @@ const App = () => {
       {/* 用户名输入弹窗 */}
       {showUsernameModal && (
         <UsernameModal
+          defaultUsername={savedUsername}
           onSubmit={handleUsernameSubmit}
           onCancel={() => {
             setShowUsernameModal(false);

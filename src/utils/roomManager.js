@@ -87,9 +87,27 @@ export const joinRoom = async (roomId, player) => {
   const roomData = roomSnap.data();
   
   // 检查玩家是否已在房间中
-  const playerExists = roomData.players.some(p => p.id === player.id);
-  if (playerExists) {
-    return roomData;
+  const existingPlayerIndex = roomData.players.findIndex(p => p.id === player.id);
+  
+  if (existingPlayerIndex >= 0) {
+    // 玩家已存在，更新玩家信息（可能是重新连接）
+    const updatedPlayers = [...roomData.players];
+    updatedPlayers[existingPlayerIndex] = {
+      ...updatedPlayers[existingPlayerIndex],
+      name: player.name,
+      avatar: player.avatar,
+      isCurrentUser: player.isCurrentUser
+    };
+    
+    await updateDoc(roomRef, {
+      players: updatedPlayers,
+      updatedAt: serverTimestamp()
+    });
+    
+    // 添加系统消息
+    await addSystemMessage(roomId, `🔄 ${player.name} 重新连接了`);
+    
+    return { ...roomData, players: updatedPlayers };
   }
   
   // 检查房间是否已满（最多4人）

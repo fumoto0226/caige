@@ -72,7 +72,7 @@ const OnlineGameScreen = ({
         }
         
         // 同步进度
-        if (Math.abs(state.progress - progress) > 0.5 && audioRef.current) {
+        if (state.progress !== undefined && Math.abs(state.progress - progress) > 0.5 && audioRef.current) {
           setProgress(state.progress);
           audioRef.current.currentTime = state.progress;
         }
@@ -84,8 +84,14 @@ const OnlineGameScreen = ({
         
         // 同步其他状态
         setHasFinishedFirstPlay(state.hasFinishedFirstPlay || false);
-        setIsCountingDown(state.isCountingDown || false);
-        setCountdown(state.countdown || 0);
+        
+        // 同步倒计时状态
+        if (state.isCountingDown !== isCountingDown) {
+          setIsCountingDown(state.isCountingDown || false);
+        }
+        if (state.countdown !== undefined && state.countdown !== countdown) {
+          setCountdown(state.countdown);
+        }
       }
     });
     
@@ -137,6 +143,7 @@ const OnlineGameScreen = ({
     if (audioRef.current && currentSong.path) {
       audioRef.current.src = currentSong.path;
       audioRef.current.load();
+      audioRef.current.currentTime = 0;
     }
   }, [currentSong]);
 
@@ -258,30 +265,54 @@ const OnlineGameScreen = ({
   };
 
   const handleHostStart = async () => {
-    setHasGameStarted(true);
-    setIsPlaying(true);
-    
-    // 房主更新游戏状态到 Firebase
-    if (roomId && isHost) {
-      await updateGameState(roomId, {
-        active: true,
-        currentIndex: songIndex,
-        isPlaying: true,
-        progress: 0,
-        segmentStart: 0,
-        hasFinishedFirstPlay: false,
-        isCountingDown: false,
-        countdown: 0,
-      });
+    // 如果不是第一首歌，先切换到下一首
+    if (songIndex > 0) {
+      onNextSong();
+      // 等待状态更新后再开始播放
+      setTimeout(async () => {
+        setHasGameStarted(true);
+        setIsPlaying(true);
+        
+        if (roomId && isHost) {
+          await updateGameState(roomId, {
+            active: true,
+            currentIndex: songIndex + 1,
+            isPlaying: true,
+            progress: 0,
+            segmentStart: 0,
+            hasFinishedFirstPlay: false,
+            isCountingDown: false,
+            countdown: 0,
+          });
+        }
+      }, 100);
+    } else {
+      // 第一首歌直接开始
+      setHasGameStarted(true);
+      setIsPlaying(true);
       
-      await sendMessage(roomId, {
-        id: Date.now().toString(),
-        playerId: 'system',
-        playerName: 'System',
-        text: '🎮 游戏开始！请听歌猜名！',
-        type: 'system',
-        timestamp: Date.now()
-      });
+      // 房主更新游戏状态到 Firebase
+      if (roomId && isHost) {
+        await updateGameState(roomId, {
+          active: true,
+          currentIndex: songIndex,
+          isPlaying: true,
+          progress: 0,
+          segmentStart: 0,
+          hasFinishedFirstPlay: false,
+          isCountingDown: false,
+          countdown: 0,
+        });
+        
+        await sendMessage(roomId, {
+          id: Date.now().toString(),
+          playerId: 'system',
+          playerName: 'System',
+          text: '🎮 游戏开始！请听歌猜名！',
+          type: 'system',
+          timestamp: Date.now()
+        });
+      }
     }
   };
 

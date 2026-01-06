@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { User, X } from 'lucide-react';
 
-const UsernameModal = ({ onSubmit, onCancel }) => {
-  const [username, setUsername] = useState('');
+const UsernameModal = ({ onSubmit, onCancel, defaultUsername = '' }) => {
+  const [username, setUsername] = useState(defaultUsername);
 
   const handleSubmit = (e) => {
     e.preventDefault();
