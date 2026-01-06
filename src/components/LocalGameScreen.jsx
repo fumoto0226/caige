@@ -74,18 +74,14 @@ const LocalGameScreen = ({
       audioRef.current.src = currentSong.path;
       audioRef.current.load();
       
-      // 设置起始位置（随机或从头开始）
-      if (settings.playbackPosition === 'RANDOM' && !settings.isFullSong) {
-        audioRef.current.onloadedmetadata = () => {
-          const duration = audioRef.current.duration;
-          const maxStart = Math.max(0, duration - settings.durationSeconds);
-          const randomStart = Math.random() * maxStart;
-          audioRef.current.currentTime = randomStart;
-        };
-      }
+      // 使用预先确定的起始位置
+      const startTime = currentSong.segmentStart || 0;
+      audioRef.current.onloadedmetadata = () => {
+        audioRef.current.currentTime = startTime;
+      };
       // 不自动播放，等待用户点击播放按钮
     }
-  }, [currentSong, settings]);
+  }, [currentSong]);
 
   // Playback Timer
   useEffect(() => {

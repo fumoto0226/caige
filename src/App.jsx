@@ -5,7 +5,7 @@ import OnlineGameScreen from './components/OnlineGameScreen';
 import ResultsScreen from './components/ResultsScreen';
 import UsernameModal from './components/UsernameModal';
 import { getAllSongs } from './data/songs';
-import { createRoom, joinRoom, leaveRoom, subscribeToRoom, checkAndCloseInactiveRoom } from './utils/roomManager';
+import { createRoom, joinRoom, leaveRoom, subscribeToRoom, checkAndCloseInactiveRoom, markPlayerInResults, unmarkPlayerInResults } from './utils/roomManager';
 
 const GameMode = {
   LOCAL: 'LOCAL',
@@ -80,6 +80,7 @@ const App = () => {
   // 线上游戏相关状态
   const [currentRoomId, setCurrentRoomId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(() => getPersistentUserId());
+  const [roomData, setRoomData] = useState(null); // 保存完整的房间数据
   const [roomUnsubscribe, setRoomUnsubscribe] = useState(null);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [pendingRoomAction, setPendingRoomAction] = useState(null); // { type: 'create' | 'join', roomId?: string }
@@ -135,7 +136,26 @@ const App = () => {
       alert("所选歌手没有找到歌曲！");
       return null;
     }
-    return shuffled;
+    
+    // 为每首歌预先确定随机起始位置（如果设置了随机播放）
+    const songsWithSegments = shuffled.map(song => {
+      let segmentStart = 0;
+      
+      if (settings.playbackPosition === PlaybackPosition.RANDOM && !settings.isFullSong) {
+        // 假设歌曲长度至少为 durationSeconds + 30秒的缓冲
+        // 实际上我们不知道歌曲的真实长度，但可以设一个安全的范围
+        // 一般歌曲长度在180-240秒，我们随机0-150秒之间
+        const estimatedMaxStart = Math.max(0, 150 - settings.durationSeconds);
+        segmentStart = Math.random() * estimatedMaxStart;
+      }
+      
+      return {
+        ...song,
+        segmentStart: Math.floor(segmentStart)
+      };
+    });
+    
+    return songsWithSegments;
   };
 
   const handleStartGame = async () => {
@@ -273,12 +293,33 @@ const App = () => {
     }
   };
 
-  const handleEndGame = () => {
+  const handleEndGame = async () => {
     setScreen('results');
+    
+    // 如果是线上游戏，标记当前玩家进入结算画面
+    if (settings.mode === GameMode.ONLINE && currentRoomId && currentUserId) {
+      await markPlayerInResults(currentRoomId, currentUserId);
+    }
   };
 
   const handleRestart = async () => {
     if (settings.mode === GameMode.ONLINE && currentRoomId) {
+      // 检查是否有玩家还在结算中
+      const { getDoc, doc: firestoreDoc } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+      const roomRef = firestoreDoc(db, 'rooms', currentRoomId);
+      const roomSnap = await getDoc(roomRef);
+      
+      if (roomSnap.exists()) {
+        const roomData = roomSnap.data();
+        const playersInResults = roomData.gameState?.playersInResults || [];
+        
+        if (playersInResults.length > 0) {
+          alert('还有玩家正在查看结算，请等待所有玩家准备好再开始新游戏');
+          return;
+        }
+      }
+      
       // 线上游戏重开 - 刷新题库，重置状态到"未开始"
       const shuffled = prepareSongs();
       if (!shuffled) return;
@@ -287,9 +328,7 @@ const App = () => {
       setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
       
       // 更新房间：新的歌曲列表 + 重置游戏状态
-      const { updateDoc, doc } = await import('firebase/firestore');
-      const { db } = await import('./firebase');
-      const roomRef = doc(db, 'rooms', currentRoomId);
+      const { updateDoc } = await import('firebase/firestore');
       
       await updateDoc(roomRef, {
         songList: shuffled,
@@ -300,13 +339,19 @@ const App = () => {
           currentIndex: 0,
           isPlaying: false,
           progress: 0,
+          segmentStart: 0,
           hasFinishedFirstPlay: false,
           isCountingDown: false,
           countdown: 0,
-          correctPlayers: []
+          correctPlayers: [],
+          gameEnded: false,
+          playersInResults: []
         },
         updatedAt: Date.now()
       });
+      
+      // 清除当前玩家的结算状态
+      await unmarkPlayerInResults(currentRoomId, currentUserId);
       
       setGameSongs(shuffled);
       setCurrentSongIndex(0);
@@ -400,6 +445,15 @@ const App = () => {
             players={players}
             onRestart={handleRestart}
             onHome={handleHome}
+            mode={settings.mode}
+            roomId={currentRoomId}
+            currentUserId={currentUserId}
+            onBackToRoom={async () => {
+              if (currentRoomId && currentUserId) {
+                await unmarkPlayerInResults(currentRoomId, currentUserId);
+              }
+              setScreen('game');
+            }}
           />
         )}
 

@@ -109,20 +109,16 @@ const OnlineGameScreen = ({
     return () => unsubscribe();
   }, [roomId]);
 
-  // 根据gameState控制音频播放
+  // 根据gameState控制音频播放（只同步播放/暂停状态，不同步进度）
   useEffect(() => {
     if (!audioRef.current || !currentSong) return;
     
     if (gameState.isPlaying) {
-      // 同步进度
-      if (Math.abs(audioRef.current.currentTime - gameState.progress) > 0.5) {
-        audioRef.current.currentTime = gameState.progress;
-      }
       audioRef.current.play().catch(err => console.error('播放失败:', err));
     } else {
       audioRef.current.pause();
     }
-  }, [gameState.isPlaying, gameState.progress, currentSong]);
+  }, [gameState.isPlaying, currentSong]);
 
   // 自动滚动消息
   useEffect(() => {
@@ -136,24 +132,17 @@ const OnlineGameScreen = ({
     audioRef.current.src = currentSong.path;
     audioRef.current.load();
     
-    // 设置起始位置（随机或从头开始）
-    if (settings.playbackPosition === 'RANDOM' && !settings.isFullSong) {
-      // 随机位置：确保至少能播放完整的durationSeconds
-      audioRef.current.onloadedmetadata = () => {
-        const duration = audioRef.current.duration;
-        const maxStart = Math.max(0, duration - settings.durationSeconds);
-        const randomStart = Math.random() * maxStart;
-        audioRef.current.currentTime = randomStart;
-      };
-    } else {
-      audioRef.current.currentTime = 0;
-    }
+    // 使用预先确定的起始位置（所有玩家一致）
+    const startTime = currentSong.segmentStart || 0;
+    audioRef.current.onloadedmetadata = () => {
+      audioRef.current.currentTime = startTime;
+    };
     
     // 重置CSS动画
     setAnimationKey(prev => prev + 1);
-  }, [currentSong, settings]);
+  }, [currentSong]);
 
-  // 房主专用：播放进度监控
+  // 房主专用：监控播放完毕
   useEffect(() => {
     if (!isHost || !gameState.isPlaying || !audioRef.current) {
       if (timerRef.current) {
@@ -163,25 +152,15 @@ const OnlineGameScreen = ({
       return;
     }
     
-    let syncCounter = 0;
+    const startTime = currentSong.segmentStart || 0;
     timerRef.current = setInterval(() => {
       if (!audioRef.current) return;
       
       const currentTime = audioRef.current.currentTime;
-      
-      // 每秒同步一次到Firebase
-      syncCounter++;
-      if (syncCounter >= 10) {
-        syncCounter = 0;
-        updateGameState(roomId, {
-          ...gameState,
-          progress: currentTime,
-          isPlaying: true
-        }).catch(err => console.error('同步进度失败:', err));
-      }
+      const elapsed = currentTime - startTime;
       
       // 检查是否播放完毕
-      if (currentTime >= maxDuration || audioRef.current.ended) {
+      if (elapsed >= maxDuration || audioRef.current.ended) {
         handlePlaybackFinish();
       }
     }, 100);
@@ -192,7 +171,7 @@ const OnlineGameScreen = ({
         timerRef.current = null;
       }
     };
-  }, [isHost, gameState.isPlaying, roomId, maxDuration]);
+  }, [isHost, gameState.isPlaying, roomId, maxDuration, currentSong]);
 
   // 房主专用：倒计时监控
   useEffect(() => {
@@ -380,24 +359,34 @@ const OnlineGameScreen = ({
     });
     
     if (isLastSong) {
-      // 最后一题，2秒后自动跳转结算
+      // 最后一题，标记游戏结束
+      await updateGameState(roomId, {
+        ...gameState,
+        active: false,
+        isCountingDown: false,
+        countdown: 0,
+        gameEnded: true, // 标记游戏结束
+      });
+      
       setTimeout(async () => {
         await sendMessage(roomId, {
           id: `game-end-${Date.now()}`,
           playerId: 'system',
           playerName: 'System',
-          text: '🎊 游戏结束！正在跳转结算页面...',
+          text: '🎊 游戏结束！点击下方按钮查看结算...',
           type: 'system',
           timestamp: Date.now()
         });
-        
-        // 再等1秒后跳转
-        setTimeout(() => {
-          onEndGame();
-        }, 1000);
-      }, 2000);
+      }, 500);
     } else {
       // 不是最后一题，显示等待提示
+      await updateGameState(roomId, {
+        ...gameState,
+        active: false,
+        isCountingDown: false,
+        countdown: 0
+      });
+      
       setTimeout(async () => {
         await sendMessage(roomId, {
           id: `wait-next-${Date.now()}`,
@@ -409,13 +398,6 @@ const OnlineGameScreen = ({
         });
       }, 500);
     }
-    
-    await updateGameState(roomId, {
-      ...gameState,
-      active: false,
-      isCountingDown: false,
-      countdown: 0
-    });
   };
 
   if (!currentSong) return null;
@@ -583,24 +565,35 @@ const OnlineGameScreen = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Chat Input - Fixed at bottom */}
+      {/* Chat Input or Results Button - Fixed at bottom */}
       <div className="fixed bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent z-30 max-w-md mx-auto right-0">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-4">
-          <input
-            type="text"
-            value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            placeholder="猜猜是哪首歌..."
-            className="flex-1 px-4 py-2.5 bg-white border-2 border-green-300 rounded-full text-sm font-bold focus:outline-none focus:border-green-500 placeholder-slate-400 text-slate-800 shadow-sm"
-          />
-          <button
-            type="submit"
-            disabled={!inputVal.trim()}
-            className="p-2.5 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition"
-          >
-            <Send size={18} />
-          </button>
-        </form>
+        {gameState.gameEnded ? (
+          <div className="p-4">
+            <button
+              onClick={onEndGame}
+              className="w-full py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-lg font-black rounded-full shadow-xl hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all"
+            >
+              🏆 查看结算
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2 p-4">
+            <input
+              type="text"
+              value={inputVal}
+              onChange={(e) => setInputVal(e.target.value)}
+              placeholder="猜猜是哪首歌..."
+              className="flex-1 px-4 py-2.5 bg-white border-2 border-green-300 rounded-full text-sm font-bold focus:outline-none focus:border-green-500 placeholder-slate-400 text-slate-800 shadow-sm"
+            />
+            <button
+              type="submit"
+              disabled={!inputVal.trim()}
+              className="p-2.5 bg-green-500 text-white rounded-full shadow-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition"
+            >
+              <Send size={18} />
+            </button>
+          </form>
+        )}
       </div>
 
       {showInviteModal && (

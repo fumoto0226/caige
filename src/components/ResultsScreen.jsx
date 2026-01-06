@@ -1,8 +1,37 @@
-import React from 'react';
-import { Trophy, Home, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Trophy, Home, RotateCcw, ArrowLeft, UserX } from 'lucide-react';
+import { subscribeToRoom, kickPlayer } from '../utils/roomManager';
 
-const ResultsScreen = ({ players, onRestart, onHome }) => {
+const ResultsScreen = ({ players, onRestart, onHome, mode, roomId, currentUserId, onBackToRoom }) => {
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+  const [playersInResults, setPlayersInResults] = useState([]);
+  const [showKickMenu, setShowKickMenu] = useState(null); // playerId to show menu for
+  const isHost = mode === 'ONLINE' && players.length > 0 && players[0]?.id === currentUserId;
+
+  // 订阅房间数据以获取正在查看结算的玩家列表
+  useEffect(() => {
+    if (!roomId) return;
+
+    const unsubscribe = subscribeToRoom(roomId, (roomData) => {
+      if (roomData?.gameState?.playersInResults) {
+        setPlayersInResults(roomData.gameState.playersInResults);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [roomId]);
+
+  const handleKick = async (playerId) => {
+    if (!isHost || !roomId) return;
+    
+    const playerToKick = players.find(p => p.id === playerId);
+    const hostName = players.find(p => p.id === currentUserId)?.name || '房主';
+    
+    if (playerToKick && window.confirm(`确定要踢出 ${playerToKick.name} 吗？`)) {
+      await kickPlayer(roomId, playerId, hostName);
+      setShowKickMenu(null);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
@@ -43,8 +72,35 @@ const ResultsScreen = ({ players, onRestart, onHome }) => {
               </div>
               
               {/* 显示emoji头像 */}
-              <div className="w-10 h-10 flex items-center justify-center text-2xl mr-2">
+              <div 
+                className={`relative w-10 h-10 flex items-center justify-center text-2xl mr-2 ${isHost && player.id !== currentUserId && mode === 'ONLINE' ? 'cursor-pointer' : ''}`}
+                onClick={() => {
+                  if (isHost && player.id !== currentUserId && mode === 'ONLINE') {
+                    setShowKickMenu(showKickMenu === player.id ? null : player.id);
+                  }
+                }}
+              >
                 {player.avatar || '👤'}
+                {/* 显示正在查看结算的标记 */}
+                {mode === 'ONLINE' && playersInResults.includes(player.id) && (
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
+                    <span className="text-[8px]">✓</span>
+                  </div>
+                )}
+                {/* 踢人菜单 */}
+                {showKickMenu === player.id && (
+                  <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border-2 border-red-200 p-2 z-50 whitespace-nowrap">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleKick(player.id);
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 text-red-500 hover:bg-red-50 rounded-md text-xs font-bold"
+                    >
+                      <UserX size={14} /> 踢出房间
+                    </button>
+                  </div>
+                )}
               </div>
               
               <div className="flex-1">
@@ -63,12 +119,36 @@ const ResultsScreen = ({ players, onRestart, onHome }) => {
       {/* 按钮区域 - Fixed 浮动布局 */}
       <div className="fixed bottom-0 left-0 w-full p-6 bg-gradient-to-t from-white via-white to-transparent z-30 max-w-md mx-auto right-0">
         <div className="space-y-2">
-          <button 
-            onClick={onRestart}
-            className="w-full py-3 bg-green-500 text-white font-black rounded-2xl shadow-lg shadow-green-200 active:scale-95 transition flex justify-center items-center gap-2 text-base"
-          >
-             <RotateCcw size={18} strokeWidth={3} /> 再玩一次
-          </button>
+          {mode === 'ONLINE' && onBackToRoom && (
+            <button 
+              onClick={onBackToRoom}
+              className="w-full py-3 bg-blue-500 text-white font-black rounded-2xl shadow-lg shadow-blue-200 active:scale-95 transition flex justify-center items-center gap-2 text-base"
+            >
+              <ArrowLeft size={18} strokeWidth={3} /> 返回房间
+            </button>
+          )}
+          {mode === 'ONLINE' && isHost && (
+            <button 
+              onClick={onRestart}
+              disabled={playersInResults.length > 0}
+              className={`w-full py-3 font-black rounded-2xl shadow-lg active:scale-95 transition flex justify-center items-center gap-2 text-base ${
+                playersInResults.length > 0
+                  ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-slate-100'
+                  : 'bg-green-500 text-white shadow-green-200'
+              }`}
+            >
+              <RotateCcw size={18} strokeWidth={3} /> 再玩一次
+              {playersInResults.length > 0 && <span className="text-xs">({playersInResults.length}人结算中)</span>}
+            </button>
+          )}
+          {mode !== 'ONLINE' && (
+            <button 
+              onClick={onRestart}
+              className="w-full py-3 bg-green-500 text-white font-black rounded-2xl shadow-lg shadow-green-200 active:scale-95 transition flex justify-center items-center gap-2 text-base"
+            >
+              <RotateCcw size={18} strokeWidth={3} /> 再玩一次
+            </button>
+          )}
           <button 
             onClick={onHome}
             className="w-full py-3 bg-white text-slate-500 font-bold rounded-2xl border-2 border-slate-100 hover:bg-slate-50 hover:text-slate-600 active:scale-95 transition flex justify-center items-center gap-2 text-sm"

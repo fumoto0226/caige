@@ -64,6 +64,8 @@ export const createRoom = async (settings, hostPlayer, songList) => {
       hasFinishedFirstPlay: false,
       isCountingDown: false,
       countdown: 0,
+      gameEnded: false, // 游戏是否结束
+      playersInResults: [], // 正在查看结算的玩家ID列表
     },
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -265,5 +267,40 @@ export const checkAndCloseInactiveRoom = async (roomId) => {
   }
   
   return false; // 房间仍然活跃
+};
+
+// 标记玩家进入结算画面
+export const markPlayerInResults = async (roomId, playerId) => {
+  const roomRef = doc(db, 'rooms', roomId);
+  const roomSnap = await getDoc(roomRef);
+  
+  if (!roomSnap.exists()) return;
+  
+  const roomData = roomSnap.data();
+  const playersInResults = roomData.gameState?.playersInResults || [];
+  
+  if (!playersInResults.includes(playerId)) {
+    await updateDoc(roomRef, {
+      'gameState.playersInResults': arrayUnion(playerId),
+      updatedAt: serverTimestamp(),
+      lastActivityAt: serverTimestamp(),
+    });
+  }
+};
+
+// 标记玩家离开结算画面
+export const unmarkPlayerInResults = async (roomId, playerId) => {
+  const roomRef = doc(db, 'rooms', roomId);
+  await updateDoc(roomRef, {
+    'gameState.playersInResults': arrayRemove(playerId),
+    updatedAt: serverTimestamp(),
+    lastActivityAt: serverTimestamp(),
+  });
+};
+
+// 踢出玩家
+export const kickPlayer = async (roomId, playerId, kickerName) => {
+  await leaveRoom(roomId, playerId);
+  await addSystemMessage(roomId, `🚫 ${kickerName} 将玩家踢出了房间`);
 };
 
