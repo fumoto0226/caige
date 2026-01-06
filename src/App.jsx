@@ -435,6 +435,8 @@ const App = () => {
             gameSongs={gameSongs}
             onNextSong={handleNextSong}
             onEndGame={handleEndGame}
+            onHome={handleHome}
+            onRestart={handleRestart}
             roomId={currentRoomId}
             currentUserId={currentUserId}
           />

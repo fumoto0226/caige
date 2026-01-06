@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ARTISTS } from '../data/songs';
-import { Send, Share2, PlayCircle, Crown, LogOut, Clock, Eye } from 'lucide-react';
+import { Send, Share2, PlayCircle, Crown, LogOut, Clock, Eye, UserX, RotateCcw } from 'lucide-react';
 import InviteModal from './InviteModal';
-import { updateGameState, sendMessage, subscribeToRoom } from '../utils/roomManager';
+import { updateGameState, sendMessage, subscribeToRoom, kickPlayer } from '../utils/roomManager';
 
 const OnlineGameScreen = ({
   settings,
@@ -14,12 +14,16 @@ const OnlineGameScreen = ({
   gameSongs,
   onNextSong,
   onEndGame,
+  onHome,
+  onRestart,
   roomId,
   currentUserId
 }) => {
   // 本地UI状态 - 仅用于输入和显示
   const [inputVal, setInputVal] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showKickMenu, setShowKickMenu] = useState(null); // playerId to show kick menu for
+  const [playersInResults, setPlayersInResults] = useState([]); // 正在查看结算的玩家ID列表
   const [animationKey, setAnimationKey] = useState(0); // 用于重置CSS动画
   
   // 游戏状态 - 完全从Firebase同步
@@ -43,6 +47,19 @@ const OnlineGameScreen = ({
 
   const maxDuration = settings.isFullSong ? 180 : settings.durationSeconds;
   const isHost = currentUserId && players.length > 0 && players[0]?.id === currentUserId;
+
+  // 踢出玩家
+  const handleKick = async (playerId) => {
+    if (!isHost || !roomId) return;
+    
+    const playerToKick = players.find(p => p.id === playerId);
+    const hostName = players.find(p => p.id === currentUserId)?.name || '房主';
+    
+    if (playerToKick && window.confirm(`确定要踢出 ${playerToKick.name} 吗？`)) {
+      await kickPlayer(roomId, playerId, hostName);
+      setShowKickMenu(null);
+    }
+  };
 
   // Setup audio
   useEffect(() => {
@@ -103,6 +120,10 @@ const OnlineGameScreen = ({
       // 同步游戏状态（所有人，包括房主）
       if (roomData.gameState) {
         setGameState(roomData.gameState);
+        // 同步正在查看结算的玩家列表
+        if (roomData.gameState.playersInResults) {
+          setPlayersInResults(roomData.gameState.playersInResults);
+        }
       }
     });
     
@@ -178,6 +199,15 @@ const OnlineGameScreen = ({
       
       // 检查是否播放完毕
       if (elapsed >= maxDuration || audioRef.current.ended) {
+        // 立即暂停音频
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        // 清理timer
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
         handlePlaybackFinish();
       }
     }, 100);
@@ -233,13 +263,22 @@ const OnlineGameScreen = ({
     
     const timeLimit = settings.timeLimit > 0 ? settings.timeLimit : 0;
     
-    await updateGameState(roomId, {
-      ...gameState,
-      isPlaying: false,
-      hasFinishedFirstPlay: true,
-      isCountingDown: timeLimit > 0,
-      countdown: timeLimit
-    });
+    // 检查是否所有人都答对了
+    const allAnswered = gameState.correctPlayers && 
+      gameState.correctPlayers.length >= players.length;
+    
+    if (allAnswered) {
+      // 所有人都答对了，直接公布答案进入下一题
+      await handleRevealAnswer();
+    } else {
+      await updateGameState(roomId, {
+        ...gameState,
+        isPlaying: false,
+        hasFinishedFirstPlay: true,
+        isCountingDown: timeLimit > 0,
+        countdown: timeLimit
+      });
+    }
   };
 
   // 房主：开始游戏/播放下一题
@@ -386,6 +425,14 @@ const OnlineGameScreen = ({
           timestamp: Date.now(),
           isLocal: true
         }]);
+        
+        // 检查是否所有人都答对了
+        if (isHost && newCorrectPlayers.length >= players.length) {
+          // 所有人都答对了，1秒后自动公布答案进入下一题
+          setTimeout(() => {
+            handleRevealAnswer();
+          }, 1000);
+        }
       }, 300);
     }
   };
@@ -458,7 +505,7 @@ const OnlineGameScreen = ({
       <div className="bg-white p-3 shadow-sm flex justify-between items-center rounded-b-3xl z-20 shrink-0">
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => window.history.back()} 
+            onClick={onHome}
             className="p-2 hover:bg-slate-100 rounded-full transition active:scale-95"
           >
             <LogOut size={18} className="text-red-400" />
@@ -483,11 +530,18 @@ const OnlineGameScreen = ({
           return (
             <div key={p.id} className="flex flex-col items-center gap-0.5 shrink-0">
               <div className="relative">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-2xl ${
-                  isMe 
-                    ? 'ring-2 ring-green-400 shadow-lg shadow-green-200' 
-                    : 'shadow-md'
-                }`}>
+                <div 
+                  className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-2xl ${
+                    isMe 
+                      ? 'ring-2 ring-green-400 shadow-lg shadow-green-200' 
+                      : 'shadow-md'
+                  } ${isHost && !isMe ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (isHost && !isMe) {
+                      setShowKickMenu(showKickMenu === p.id ? null : p.id);
+                    }
+                  }}
+                >
                   {p.avatar}
                 </div>
                 {idx === 0 && (
@@ -495,11 +549,30 @@ const OnlineGameScreen = ({
                     <Crown size={10} className="text-yellow-900" />
                   </div>
                 )}
+                {/* 踢人菜单 */}
+                {showKickMenu === p.id && (
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-white rounded-lg shadow-xl border-2 border-red-200 p-2 z-50 whitespace-nowrap">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleKick(p.id);
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 text-red-500 hover:bg-red-50 rounded-md text-xs font-bold"
+                    >
+                      <UserX size={14} /> 踢出房间
+                    </button>
+                  </div>
+                )}
                 <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-[9px] font-black shadow-sm border-2 border-white">
                   {p.score || 0}
                 </div>
               </div>
-              <span className="text-[9px] font-bold text-slate-500 mt-1 truncate max-w-[60px]">{p.name}</span>
+              <div className="flex flex-col items-center">
+                <span className="text-[9px] font-bold text-slate-500 truncate max-w-[60px]">{p.name}</span>
+                {playersInResults.includes(p.id) && (
+                  <span className="text-[8px] font-bold text-purple-500 bg-purple-50 px-1.5 py-0.5 rounded-full mt-0.5">结算中</span>
+                )}
+              </div>
             </div>
           );
         })}
@@ -614,10 +687,18 @@ const OnlineGameScreen = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Chat Input or Results Button - Fixed at bottom */}
+      {/* Chat Input or Results/Restart Buttons - Fixed at bottom */}
       <div className="fixed bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent z-30 max-w-md mx-auto right-0">
         {gameState.gameEnded ? (
-          <div className="p-4">
+          <div className="p-4 space-y-2">
+            {isHost && (
+              <button
+                onClick={onRestart}
+                className="w-full py-4 bg-green-500 text-white text-lg font-black rounded-full shadow-xl hover:bg-green-600 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <RotateCcw size={20} /> 再玩一次
+              </button>
+            )}
             <button
               onClick={onEndGame}
               className="w-full py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-lg font-black rounded-full shadow-xl hover:from-purple-600 hover:to-pink-600 active:scale-95 transition-all"

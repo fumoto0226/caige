@@ -153,7 +153,7 @@ const ResultsScreen = ({ players, onRestart, onHome, mode, roomId, currentUserId
             onClick={onHome}
             className="w-full py-3 bg-white text-slate-500 font-bold rounded-2xl border-2 border-slate-100 hover:bg-slate-50 hover:text-slate-600 active:scale-95 transition flex justify-center items-center gap-2 text-sm"
           >
-            <Home size={18} strokeWidth={3} /> 返回首页
+            <Home size={18} strokeWidth={3} /> {mode === 'ONLINE' ? '退出房间' : '返回首页'}
           </button>
         </div>
       </div>
