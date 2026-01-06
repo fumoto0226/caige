@@ -19,6 +19,7 @@ const OnlineGameScreen = ({
   // 本地UI状态 - 仅用于输入和显示
   const [inputVal, setInputVal] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [localProgress, setLocalProgress] = useState(0); // 本地进度，用于平滑显示
   
   // 游戏状态 - 完全从Firebase同步
   const [gameState, setGameState] = useState({
@@ -29,6 +30,7 @@ const OnlineGameScreen = ({
     hasFinishedFirstPlay: false,
     isCountingDown: false,
     countdown: 0,
+    correctPlayers: [], // 当前题目答对的玩家ID列表（按顺序）
   });
   
   const [messages, setMessages] = useState([]);
@@ -102,7 +104,23 @@ const OnlineGameScreen = ({
     audioRef.current.src = currentSong.path;
     audioRef.current.load();
     audioRef.current.currentTime = 0;
+    setLocalProgress(0);
   }, [currentSong]);
+
+  // 平滑更新本地进度（所有人，包括房主）
+  useEffect(() => {
+    if (!gameState.isPlaying || !audioRef.current) {
+      return;
+    }
+    
+    const progressTimer = setInterval(() => {
+      if (audioRef.current) {
+        setLocalProgress(audioRef.current.currentTime);
+      }
+    }, 100); // 每100ms更新一次显示
+    
+    return () => clearInterval(progressTimer);
+  }, [gameState.isPlaying]);
 
   // 房主专用：播放进度监控
   useEffect(() => {
@@ -219,6 +237,7 @@ const OnlineGameScreen = ({
       hasFinishedFirstPlay: false,
       isCountingDown: false,
       countdown: 0,
+      correctPlayers: [], // 重置答对列表
     });
     
     if (songIndex === 0) {
@@ -257,16 +276,33 @@ const OnlineGameScreen = ({
     setInputVal('');
 
     if (isCorrect && gameState.active) {
+      // 检查是否已经答对过
+      const alreadyAnswered = gameState.correctPlayers?.includes(currentUserId);
+      if (alreadyAnswered) return;
+      
       setTimeout(async () => {
         const currentPlayer = players.find(p => p.id === currentUserId);
         const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+        
+        // 更新答对列表到Firebase
+        const newCorrectPlayers = [...(gameState.correctPlayers || []), currentUserId];
+        await updateGameState(roomId, {
+          ...gameState,
+          correctPlayers: newCorrectPlayers
+        });
+        
+        // 计算得分：第一个10分，第二个8分，第三个及以后6分
+        const rank = newCorrectPlayers.length;
+        let score = 6; // 默认6分
+        if (rank === 1) score = 10;
+        else if (rank === 2) score = 8;
         
         // 系统消息：XX答对了 <正确答案>（不显示具体内容）
         await sendMessage(roomId, {
           id: Date.now().toString(),
           playerId: 'system',
           playerName: 'System',
-          text: `🎉 ${currentPlayer?.name} 答对了！<正确答案>`,
+          text: `🎉 ${currentPlayer?.name} 答对了！<正确答案>（+${score}分）`,
           type: 'correct',
           timestamp: Date.now()
         });
@@ -276,7 +312,7 @@ const OnlineGameScreen = ({
           id: `local-${Date.now()}`,
           playerId: 'system',
           playerName: 'System',
-          text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artist?.name}`,
+          text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artist?.name}（+${score}分）`,
           type: 'correct',
           timestamp: Date.now(),
           isLocal: true
@@ -284,7 +320,7 @@ const OnlineGameScreen = ({
         
         // 更新分数
         setPlayers(prev => prev.map(p => 
-          p.id === currentUserId ? { ...p, score: p.score + 20 } : p
+          p.id === currentUserId ? { ...p, score: p.score + score } : p
         ));
       }, 500);
     }
@@ -362,7 +398,7 @@ const OnlineGameScreen = ({
               <div className="relative">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-2xl ${
                   isMe 
-                    ? 'ring-4 ring-green-400 shadow-lg shadow-green-200' 
+                    ? 'ring-2 ring-green-400 shadow-lg shadow-green-200' 
                     : 'shadow-md'
                 }`}>
                   {p.avatar}
@@ -397,11 +433,11 @@ const OnlineGameScreen = ({
         </div>
         
         <div className="flex items-center gap-2 pt-3 relative">
-           <span className="text-[10px] font-bold text-slate-400 w-8 text-right">{Math.floor(gameState.progress)}s</span>
+           <span className="text-[10px] font-bold text-slate-400 w-8 text-right">{Math.floor(localProgress)}s</span>
            <div className="flex-1 relative h-1.5 bg-slate-100 rounded-lg overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-100"
-                  style={{ width: `${(gameState.progress / maxDuration) * 100}%` }}
+                  className="h-full bg-gradient-to-r from-purple-500 to-purple-600"
+                  style={{ width: `${(localProgress / maxDuration) * 100}%` }}
                 />
            </div>
            <span className="text-[10px] font-bold text-slate-400 w-8">{maxDuration}s</span>
@@ -413,12 +449,12 @@ const OnlineGameScreen = ({
                <button 
                  onClick={handleHostStart}
                  className={`px-5 py-2 rounded-full text-xs font-black shadow-lg animate-pulse flex items-center gap-2 transform transition hover:scale-105 ${
-                   songIndex === 0 
+                   songIndex === 0 && !gameState.hasFinishedFirstPlay
                    ? 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 shadow-yellow-200' 
-                   : 'bg-green-500 hover:bg-green-600 text-white shadow-green-200'
+                   : 'bg-purple-500 hover:bg-purple-600 text-white shadow-purple-200'
                  }`}
                >
-                 <PlayCircle size={16} /> {songIndex === 0 ? '房主开始游戏' : '播放下一题'}
+                 <PlayCircle size={16} /> {songIndex === 0 && !gameState.hasFinishedFirstPlay ? '房主开始游戏' : '播放下一题'}
                </button>
              ) : (
                <div className="px-5 py-2 rounded-full text-xs font-black flex items-center gap-2 bg-slate-200 text-slate-400">

@@ -166,14 +166,32 @@ const LocalGameScreen = ({
   };
 
   const handleScore = (playerId, correct) => {
-    setPlayers(prev => prev.map(p => {
-      if (p.id === playerId) {
-        return { ...p, score: correct ? p.score + 10 : p.score };
-      }
-      return p;
-    }));
-    // 记录答对或答错的状态
-    setRoundScoresRecorded(prev => ({...prev, [playerId]: correct}));
+    // 切换选中状态（多选）
+    const isCurrentlySelected = roundScoresRecorded[playerId] === true;
+    
+    if (isCurrentlySelected) {
+      // 取消选中：减去10分
+      setPlayers(prev => prev.map(p => {
+        if (p.id === playerId) {
+          return { ...p, score: p.score - 10 };
+        }
+        return p;
+      }));
+      setRoundScoresRecorded(prev => {
+        const newState = {...prev};
+        delete newState[playerId];
+        return newState;
+      });
+    } else {
+      // 选中：加10分
+      setPlayers(prev => prev.map(p => {
+        if (p.id === playerId) {
+          return { ...p, score: p.score + 10 };
+        }
+        return p;
+      }));
+      setRoundScoresRecorded(prev => ({...prev, [playerId]: true}));
+    }
   };
 
   const addPlayer = () => {
@@ -199,7 +217,8 @@ const LocalGameScreen = ({
     setPlayers(prev => prev.map(p => p.id === id ? { ...p, name } : p));
   };
 
-  const allPlayersScored = players.every(p => roundScoresRecorded[p.id] !== undefined);
+  // 答案已公布，随时可以进入下一题（不需要选完所有人）
+  const canProceed = isRevealed;
 
   if (gameState === 'standby') {
     return (
@@ -377,33 +396,48 @@ const LocalGameScreen = ({
                     <div className="flex-1">
                         <h3 className="text-lg font-black text-slate-800">《{currentSong.title}》</h3>
                         <p className="text-xs font-bold text-slate-400">{ARTISTS.find(a => a.id === currentSong.artistId)?.name}</p>
+                        <p className="text-xs font-bold text-green-600 mt-1">请选择最先答对的玩家（可多选）</p>
                     </div>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
-                    {players.map(p => (
-                        <div key={p.id} className="flex items-center justify-between bg-white p-2.5 pr-2 rounded-xl border border-slate-100 shadow-sm">
-                            <span className="font-bold text-slate-700 text-sm pl-2">{p.name}</span>
-                            
-                            {roundScoresRecorded[p.id] !== undefined ? (
-                                <span className={`text-[10px] px-2 py-1 rounded-full font-bold flex items-center gap-1 ${roundScoresRecorded[p.id] ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>
-                                    {roundScoresRecorded[p.id] ? '正确' : '错误'}
-                                </span>
-                            ) : (
-                                <div className="flex gap-2">
-                                    <button onClick={() => handleScore(p.id, true)} className="w-8 h-8 flex items-center justify-center bg-green-100 text-green-600 rounded-lg active:scale-95"><Check size={16} /></button>
-                                    <button onClick={() => handleScore(p.id, false)} className="w-8 h-8 flex items-center justify-center bg-red-100 text-red-500 rounded-lg active:scale-95"><X size={16} /></button>
+                    {players.map(p => {
+                        const isSelected = roundScoresRecorded[p.id] === true;
+                        return (
+                            <button
+                                key={p.id}
+                                onClick={() => handleScore(p.id, true)}
+                                className={`w-full flex items-center justify-between p-3 rounded-xl border-2 transition-all active:scale-95 ${
+                                    isSelected 
+                                        ? 'bg-green-50 border-green-400 shadow-md' 
+                                        : 'bg-white border-slate-200 hover:border-green-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <span className="font-bold text-slate-700 text-sm">{p.name}</span>
+                                    {isSelected && (
+                                        <span className="text-[10px] px-2 py-0.5 bg-green-500 text-white rounded-full font-bold">
+                                            +10分
+                                        </span>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    ))}
+                                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                                    isSelected 
+                                        ? 'bg-green-500 border-green-500' 
+                                        : 'border-slate-300'
+                                }`}>
+                                    {isSelected && <Check size={16} className="text-white" />}
+                                </div>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
           </div>
       )}
 
       {/* 下一题按钮 - 独立的 fixed 浮动按钮 */}
-      {isRevealed && allPlayersScored && (
+      {canProceed && (
         <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-[60] max-w-md mx-auto right-0">
           <button 
             onClick={songIndex + 1 >= totalSongs ? onEndGame : onNextSong}
@@ -414,14 +448,6 @@ const LocalGameScreen = ({
         </div>
       )}
 
-      {/* 提示信息 - 当未完成记分时显示 */}
-      {isRevealed && !allPlayersScored && (
-        <div className="fixed bottom-0 left-0 w-full p-4 z-[60] max-w-md mx-auto right-0 flex justify-center">
-          <div className="bg-slate-100 px-6 py-3 rounded-full text-slate-400 font-bold text-sm shadow-lg">
-            请记录所有玩家得分
-          </div>
-        </div>
-      )}
     </div>
   );
 };
