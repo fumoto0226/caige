@@ -109,16 +109,20 @@ const OnlineGameScreen = ({
     return () => unsubscribe();
   }, [roomId]);
 
-  // 根据gameState控制音频播放（只同步播放/暂停状态，不同步进度）
+  // 根据gameState控制音频播放（同步播放状态和进度）
   useEffect(() => {
     if (!audioRef.current || !currentSong) return;
     
     if (gameState.isPlaying) {
+      // 同步进度
+      if (Math.abs(audioRef.current.currentTime - gameState.progress) > 0.5) {
+        audioRef.current.currentTime = gameState.progress;
+      }
       audioRef.current.play().catch(err => console.error('播放失败:', err));
     } else {
       audioRef.current.pause();
     }
-  }, [gameState.isPlaying, currentSong]);
+  }, [gameState.isPlaying, gameState.progress, currentSong]);
 
   // 自动滚动消息
   useEffect(() => {
@@ -132,7 +136,7 @@ const OnlineGameScreen = ({
     audioRef.current.src = currentSong.path;
     audioRef.current.load();
     
-    // 使用预先确定的起始位置（所有玩家一致）
+    // 使用预先确定的起始位置（从Firebase的gameState.segmentStart读取，所有玩家一致）
     const startTime = currentSong.segmentStart || 0;
     audioRef.current.onloadedmetadata = () => {
       audioRef.current.currentTime = startTime;
@@ -142,7 +146,7 @@ const OnlineGameScreen = ({
     setAnimationKey(prev => prev + 1);
   }, [currentSong]);
 
-  // 房主专用：监控播放完毕
+  // 房主专用：播放进度监控和同步
   useEffect(() => {
     if (!isHost || !gameState.isPlaying || !audioRef.current) {
       if (timerRef.current) {
@@ -152,12 +156,25 @@ const OnlineGameScreen = ({
       return;
     }
     
+    let syncCounter = 0;
     const startTime = currentSong.segmentStart || 0;
+    
     timerRef.current = setInterval(() => {
       if (!audioRef.current) return;
       
       const currentTime = audioRef.current.currentTime;
       const elapsed = currentTime - startTime;
+      
+      // 每秒同步一次进度到Firebase
+      syncCounter++;
+      if (syncCounter >= 10) {
+        syncCounter = 0;
+        updateGameState(roomId, {
+          ...gameState,
+          progress: currentTime,
+          isPlaying: true
+        }).catch(err => console.error('同步进度失败:', err));
+      }
       
       // 检查是否播放完毕
       if (elapsed >= maxDuration || audioRef.current.ended) {
@@ -278,11 +295,34 @@ const OnlineGameScreen = ({
       (inputText.toLowerCase() === currentSong.title.toLowerCase() ||
        inputText === artist?.name);
 
+    // 检查是否已经答对过
+    const alreadyAnswered = gameState.correctPlayers?.includes(currentUserId);
+    
+    // 如果已经答对过，直接返回，不发送任何消息
+    if (alreadyAnswered && isCorrect) {
+      setInputVal('');
+      return;
+    }
+
+    // 答案屏蔽：替换消息中的答案为<正确答案>
+    let displayText = inputText;
+    if (gameState.active) {
+      // 屏蔽歌曲名
+      const titleRegex = new RegExp(currentSong.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      displayText = displayText.replace(titleRegex, '<正确答案>');
+      
+      // 屏蔽歌手名
+      if (artist?.name) {
+        const artistRegex = new RegExp(artist.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        displayText = displayText.replace(artistRegex, '<正确答案>');
+      }
+    }
+
     const newMessage = {
       id: Date.now().toString(),
       playerId: currentUserId || 'unknown',
       playerName: players.find(p => p.id === currentUserId)?.name || '我',
-      text: inputText,
+      text: displayText,
       type: 'user',
       timestamp: Date.now()
     };
@@ -291,33 +331,47 @@ const OnlineGameScreen = ({
     setInputVal('');
 
     if (isCorrect && gameState.active) {
-      // 检查是否已经答对过
-      const alreadyAnswered = gameState.correctPlayers?.includes(currentUserId);
-      if (alreadyAnswered) return;
+      // 立即更新本地分数
+      const currentPlayer = players.find(p => p.id === currentUserId);
       
+      // 计算得分：第一个10分，第二个8分，第三个及以后6分
+      const rank = (gameState.correctPlayers || []).length + 1;
+      let score = 6; // 默认6分
+      if (rank === 1) score = 10;
+      else if (rank === 2) score = 8;
+      
+      // 立即更新本地玩家分数
+      setPlayers(prev => prev.map(p => 
+        p.id === currentUserId ? { ...p, score: p.score + score } : p
+      ));
+      
+      // 更新Firebase中的答对列表和玩家分数
+      const newCorrectPlayers = [...(gameState.correctPlayers || []), currentUserId];
+      const updatedPlayers = players.map(p => 
+        p.id === currentUserId ? { ...p, score: p.score + score } : p
+      );
+      
+      // 同时更新gameState和players
+      const { updateDoc, doc: firestoreDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      const roomRef = firestoreDoc(db, 'rooms', roomId);
+      
+      await updateDoc(roomRef, {
+        'gameState.correctPlayers': newCorrectPlayers,
+        players: updatedPlayers,
+        updatedAt: Date.now()
+      });
+      
+      // 延迟发送系统消息
       setTimeout(async () => {
-        const currentPlayer = players.find(p => p.id === currentUserId);
-        const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+        const artistInfo = ARTISTS.find(a => a.id === currentSong.artistId);
         
-        // 更新答对列表到Firebase
-        const newCorrectPlayers = [...(gameState.correctPlayers || []), currentUserId];
-        await updateGameState(roomId, {
-          ...gameState,
-          correctPlayers: newCorrectPlayers
-        });
-        
-        // 计算得分：第一个10分，第二个8分，第三个及以后6分
-        const rank = newCorrectPlayers.length;
-        let score = 6; // 默认6分
-        if (rank === 1) score = 10;
-        else if (rank === 2) score = 8;
-        
-        // 系统消息：XX答对了 <正确答案>（不显示具体内容）
+        // 系统消息：XX答对了！（+X分）- 不显示答案
         await sendMessage(roomId, {
           id: Date.now().toString(),
           playerId: 'system',
           playerName: 'System',
-          text: `🎉 ${currentPlayer?.name} 答对了！<正确答案>（+${score}分）`,
+          text: `🎉 ${currentPlayer?.name} 答对了！（+${score}分）`,
           type: 'correct',
           timestamp: Date.now()
         });
@@ -327,17 +381,12 @@ const OnlineGameScreen = ({
           id: `local-${Date.now()}`,
           playerId: 'system',
           playerName: 'System',
-          text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artist?.name}（+${score}分）`,
+          text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artistInfo?.name}（+${score}分）`,
           type: 'correct',
           timestamp: Date.now(),
           isLocal: true
         }]);
-        
-        // 更新分数
-        setPlayers(prev => prev.map(p => 
-          p.id === currentUserId ? { ...p, score: p.score + score } : p
-        ));
-      }, 500);
+      }, 300);
     }
   };
 
