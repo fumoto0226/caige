@@ -444,18 +444,24 @@ const OnlineGameScreen = ({
            <span className="text-[9px] font-bold text-slate-400 w-6">{maxDuration}s</span>
         </div>
 
-        {isHost && !hasGameStarted && (
+        {!hasGameStarted && (
           <div className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-2xl flex items-center justify-center z-20">
-             <button 
-              onClick={handleHostStart}
-              className={`px-5 py-2 rounded-full text-xs font-black shadow-lg animate-pulse flex items-center gap-2 transform transition hover:scale-105 ${
-                songIndex === 0 
-                ? 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 shadow-yellow-200' 
-                : 'bg-green-500 hover:bg-green-600 text-white shadow-green-200'
-              }`}
-            >
-              <PlayCircle size={16} /> {songIndex === 0 ? '房主开始游戏' : '播放下一题'}
-            </button>
+             {isHost ? (
+               <button 
+                 onClick={handleHostStart}
+                 className={`px-5 py-2 rounded-full text-xs font-black shadow-lg animate-pulse flex items-center gap-2 transform transition hover:scale-105 ${
+                   songIndex === 0 
+                   ? 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900 shadow-yellow-200' 
+                   : 'bg-green-500 hover:bg-green-600 text-white shadow-green-200'
+                 }`}
+               >
+                 <PlayCircle size={16} /> {songIndex === 0 ? '房主开始游戏' : '播放下一题'}
+               </button>
+             ) : (
+               <div className="px-5 py-2 rounded-full text-xs font-black flex items-center gap-2 bg-slate-200 text-slate-400">
+                 <Clock size={16} /> 等待房主开始游戏...
+               </div>
+             )}
           </div>
         )}
       </div>
@@ -511,9 +517,9 @@ const OnlineGameScreen = ({
               <div className={`max-w-[85%] px-3 py-2 text-sm font-medium shadow-sm break-words relative ${
                 isMe 
                 ? 'bg-green-500 text-white rounded-2xl rounded-tr-sm' 
-                : 'bg-white text-slate-800 rounded-2xl rounded-tl-sm border border-slate-100'
+                : 'bg-blue-500 text-white rounded-2xl rounded-tl-sm'
               }`}>
-                {!isMe && <p className="text-[9px] font-bold text-slate-400 mb-0.5">{msg.playerName}</p>}
+                {!isMe && <p className="text-[9px] font-bold text-white/70 mb-0.5">{msg.playerName}</p>}
                 {msg.text}
               </div>
             </div>

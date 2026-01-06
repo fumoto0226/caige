@@ -175,7 +175,9 @@ const App = () => {
         setScreen('game');
       }
     } catch (error) {
-      alert(error.message);
+      console.error('房间操作失败:', error);
+      alert(error.message || '操作失败，请重试');
+      setShowUsernameModal(false);
     }
     
     setPendingRoomAction(null);
