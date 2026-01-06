@@ -110,6 +110,11 @@ export const joinRoom = async (roomId, player) => {
     return { ...roomData, players: updatedPlayers };
   }
   
+  // 检查游戏是否已开始（不允许新玩家加入）
+  if (roomData.gameState && roomData.gameState.active === true) {
+    throw new Error('游戏已开始，无法加入');
+  }
+  
   // 检查房间是否已满（最多4人）
   if (roomData.players.length >= 4) {
     throw new Error('房间已满');
