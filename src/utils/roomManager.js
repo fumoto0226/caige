@@ -66,7 +66,8 @@ export const createRoom = async (settings, hostPlayer, songList) => {
       countdown: 0,
     },
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
+    lastActivityAt: serverTimestamp() // 最后活动时间
   };
   
   const roomRef = doc(db, 'rooms', roomId);
@@ -173,7 +174,8 @@ export const updateGameState = async (roomId, gameState) => {
   const roomRef = doc(db, 'rooms', roomId);
   await updateDoc(roomRef, {
     gameState,
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
+    lastActivityAt: serverTimestamp() // 更新活动时间
   });
 };
 
@@ -192,7 +194,8 @@ export const sendMessage = async (roomId, message) => {
   const roomRef = doc(db, 'rooms', roomId);
   await updateDoc(roomRef, {
     messages: arrayUnion(message),
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
+    lastActivityAt: serverTimestamp() // 更新活动时间
   });
 };
 
@@ -238,5 +241,29 @@ export const updatePlayerScore = async (roomId, playerId, scoreIncrement) => {
     players: updatedPlayers,
     updatedAt: serverTimestamp()
   });
+};
+
+// 检查并清理过期房间（5分钟无活动）
+export const checkAndCloseInactiveRoom = async (roomId) => {
+  const roomRef = doc(db, 'rooms', roomId);
+  const roomSnap = await getDoc(roomRef);
+  
+  if (!roomSnap.exists()) return false;
+  
+  const roomData = roomSnap.data();
+  const lastActivity = roomData.lastActivityAt?.toDate() || roomData.updatedAt?.toDate();
+  
+  if (!lastActivity) return false;
+  
+  const now = new Date();
+  const diffMinutes = (now - lastActivity) / 1000 / 60;
+  
+  // 如果超过5分钟没活动，删除房间
+  if (diffMinutes > 5) {
+    await deleteDoc(roomRef);
+    return true; // 房间已被清理
+  }
+  
+  return false; // 房间仍然活跃
 };
 

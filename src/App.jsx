@@ -5,7 +5,7 @@ import OnlineGameScreen from './components/OnlineGameScreen';
 import ResultsScreen from './components/ResultsScreen';
 import UsernameModal from './components/UsernameModal';
 import { getAllSongs } from './data/songs';
-import { createRoom, joinRoom, leaveRoom, subscribeToRoom } from './utils/roomManager';
+import { createRoom, joinRoom, leaveRoom, subscribeToRoom, checkAndCloseInactiveRoom } from './utils/roomManager';
 
 const GameMode = {
   LOCAL: 'LOCAL',
@@ -96,16 +96,24 @@ const App = () => {
       // URL中有房间号，优先加入
       setPendingRoomAction({ type: 'join', roomId: roomIdFromUrl });
       
-      // 如果有保存的用户名，直接加入，否则显示输入框
+      // 如果有保存的用户名，显示输入框但预填用户名
       if (savedName) {
-        handleUsernameSubmit(savedName);
+        // 自动加入（延迟执行，确保状态已更新）
+        setTimeout(() => {
+          const action = { type: 'join', roomId: roomIdFromUrl };
+          setPendingRoomAction(action);
+          handleUsernameSubmit(savedName);
+        }, 100);
       } else {
         setShowUsernameModal(true);
       }
     } else if (savedRoomId && savedName) {
       // 没有URL参数，但有保存的房间ID和用户名，自动重新加入
-      setPendingRoomAction({ type: 'join', roomId: savedRoomId });
-      handleUsernameSubmit(savedName);
+      setTimeout(() => {
+        const action = { type: 'join', roomId: savedRoomId };
+        setPendingRoomAction(action);
+        handleUsernameSubmit(savedName);
+      }, 100);
     }
   }, []);
 
@@ -173,6 +181,11 @@ const App = () => {
     };
 
     try {
+      if (!pendingRoomAction) {
+        console.error('pendingRoomAction is null');
+        return;
+      }
+      
       if (pendingRoomAction.type === 'create') {
         // 创建房间 - 房主准备歌曲
         const shuffled = prepareSongs();
@@ -199,6 +212,15 @@ const App = () => {
         setPlayers([player]);
         setScreen('game');
       } else if (pendingRoomAction.type === 'join') {
+        // 检查房间是否过期
+        const isClosed = await checkAndCloseInactiveRoom(pendingRoomAction.roomId);
+        if (isClosed) {
+          alert('房间已过期关闭');
+          saveCurrentRoomId(null);
+          setPendingRoomAction(null);
+          return;
+        }
+        
         // 加入房间 - 使用房间的歌曲列表
         const roomData = await joinRoom(pendingRoomAction.roomId, player);
         setCurrentRoomId(pendingRoomAction.roomId);

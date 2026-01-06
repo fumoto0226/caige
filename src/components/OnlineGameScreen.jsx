@@ -19,7 +19,7 @@ const OnlineGameScreen = ({
   // 本地UI状态 - 仅用于输入和显示
   const [inputVal, setInputVal] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [localProgress, setLocalProgress] = useState(0); // 本地进度，用于平滑显示
+  const [animationKey, setAnimationKey] = useState(0); // 用于重置CSS动画
   
   // 游戏状态 - 完全从Firebase同步
   const [gameState, setGameState] = useState({
@@ -97,30 +97,16 @@ const OnlineGameScreen = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 歌曲切换时重置音频
+  // 歌曲切换时重置音频和动画
   useEffect(() => {
     if (!currentSong || !audioRef.current) return;
     
     audioRef.current.src = currentSong.path;
     audioRef.current.load();
     audioRef.current.currentTime = 0;
-    setLocalProgress(0);
+    // 重置CSS动画
+    setAnimationKey(prev => prev + 1);
   }, [currentSong]);
-
-  // 平滑更新本地进度（所有人，包括房主）
-  useEffect(() => {
-    if (!gameState.isPlaying || !audioRef.current) {
-      return;
-    }
-    
-    const progressTimer = setInterval(() => {
-      if (audioRef.current) {
-        setLocalProgress(audioRef.current.currentTime);
-      }
-    }, 100); // 每100ms更新一次显示
-    
-    return () => clearInterval(progressTimer);
-  }, [gameState.isPlaying]);
 
   // 房主专用：播放进度监控
   useEffect(() => {
@@ -219,12 +205,17 @@ const OnlineGameScreen = ({
   const handleHostStart = async () => {
     if (!isHost) return;
     
-    let newIndex = songIndex;
+    // 判断是否是第一次开始游戏（从未播放过）
+    const isFirstTime = songIndex === 0 && !gameState.hasFinishedFirstPlay;
     
-    // 如果不是第一首，先切换到下一首
-    if (songIndex > 0) {
+    let newIndex;
+    if (isFirstTime) {
+      // 第一次：从第0首开始
+      newIndex = 0;
+    } else {
+      // 播放下一题：当前索引+1
       newIndex = songIndex + 1;
-      onNextSong(); // 切换歌曲
+      onNextSong(); // 切换本地歌曲
       // 等待状态更新
       await new Promise(resolve => setTimeout(resolve, 300));
     }
@@ -240,7 +231,7 @@ const OnlineGameScreen = ({
       correctPlayers: [], // 重置答对列表
     });
     
-    if (songIndex === 0) {
+    if (isFirstTime) {
       await sendMessage(roomId, {
         id: Date.now().toString(),
         playerId: 'system',
@@ -433,11 +424,19 @@ const OnlineGameScreen = ({
         </div>
         
         <div className="flex items-center gap-2 pt-3 relative">
-           <span className="text-[10px] font-bold text-slate-400 w-8 text-right">{Math.floor(localProgress)}s</span>
+           <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
+             {gameState.isPlaying ? '播放中' : '暂停'}
+           </span>
            <div className="flex-1 relative h-1.5 bg-slate-100 rounded-lg overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-purple-500 to-purple-600"
-                  style={{ width: `${(localProgress / maxDuration) * 100}%` }}
+                  key={animationKey}
+                  className={`h-full bg-gradient-to-r from-purple-500 to-purple-600 ${
+                    gameState.isPlaying ? 'animate-progress' : ''
+                  }`}
+                  style={{ 
+                    '--duration': `${maxDuration}s`,
+                    animationPlayState: gameState.isPlaying ? 'running' : 'paused'
+                  }}
                 />
            </div>
            <span className="text-[10px] font-bold text-slate-400 w-8">{maxDuration}s</span>
