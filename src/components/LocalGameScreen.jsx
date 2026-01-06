@@ -396,9 +396,9 @@ const LocalGameScreen = ({
         <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0 flex justify-center">
           <button 
             onClick={() => setIsRevealed(true)}
-            disabled={!hasGameStarted}
+            disabled={gameState === 'standby'}
             className={`px-6 py-3 font-bold rounded-full shadow-lg flex items-center gap-2 text-sm transition-transform ${
-              hasGameStarted 
+              gameState !== 'standby'
               ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 active:scale-95' 
               : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
