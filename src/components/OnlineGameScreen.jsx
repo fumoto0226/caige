@@ -201,15 +201,19 @@ const OnlineGameScreen = ({
   const handleHostStart = async () => {
     if (!isHost) return;
     
+    let newIndex = songIndex;
+    
     // 如果不是第一首，先切换到下一首
     if (songIndex > 0) {
-      onNextSong();
-      await new Promise(resolve => setTimeout(resolve, 200));
+      newIndex = songIndex + 1;
+      onNextSong(); // 切换歌曲
+      // 等待状态更新
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
     
     await updateGameState(roomId, {
       active: true,
-      currentIndex: songIndex > 0 ? songIndex + 1 : songIndex,
+      currentIndex: newIndex,
       isPlaying: true,
       progress: 0,
       hasFinishedFirstPlay: false,
@@ -254,22 +258,25 @@ const OnlineGameScreen = ({
 
     if (isCorrect && gameState.active) {
       setTimeout(async () => {
-        // 系统消息：XX猜对了（不显示答案）
+        const currentPlayer = players.find(p => p.id === currentUserId);
+        const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+        
+        // 系统消息：XX答对了 <正确答案>（不显示具体内容）
         await sendMessage(roomId, {
           id: Date.now().toString(),
           playerId: 'system',
           playerName: 'System',
-          text: `🎉 ${players.find(p => p.id === currentUserId)?.name} 猜对了！`,
+          text: `🎉 ${currentPlayer?.name} 答对了！<正确答案>`,
           type: 'correct',
           timestamp: Date.now()
         });
         
-        // 本地消息：给自己看答案
+        // 本地消息：给自己显示完整答案
         setMessages(prev => [...prev, {
           id: `local-${Date.now()}`,
           playerId: 'system',
           playerName: 'System',
-          text: `✅ 恭喜你猜对了！歌名是《${currentSong.title}》`,
+          text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artist?.name}`,
           type: 'correct',
           timestamp: Date.now(),
           isLocal: true
@@ -348,24 +355,31 @@ const OnlineGameScreen = ({
 
       {/* Player Chips */}
       <div className="flex gap-2 px-4 py-2 overflow-x-auto no-scrollbar shrink-0">
-        {players.map((p, idx) => (
-          <div key={p.id} className="flex flex-col items-center gap-0.5 shrink-0">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-black shadow-md text-lg">
-                {p.avatar}
-              </div>
-              {idx === 0 && (
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-sm">
-                  <Crown size={10} className="text-yellow-900" />
+        {players.map((p, idx) => {
+          const isMe = p.id === currentUserId;
+          return (
+            <div key={p.id} className="flex flex-col items-center gap-0.5 shrink-0">
+              <div className="relative">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-2xl ${
+                  isMe 
+                    ? 'ring-4 ring-green-400 shadow-lg shadow-green-200' 
+                    : 'shadow-md'
+                }`}>
+                  {p.avatar}
                 </div>
-              )}
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-[9px] font-black shadow-sm border-2 border-white">
-                {p.score || 0}
+                {idx === 0 && (
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center shadow-sm">
+                    <Crown size={10} className="text-yellow-900" />
+                  </div>
+                )}
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-[9px] font-black shadow-sm border-2 border-white">
+                  {p.score || 0}
+                </div>
               </div>
+              <span className="text-[9px] font-bold text-slate-500 mt-1 truncate max-w-[60px]">{p.name}</span>
             </div>
-            <span className="text-[9px] font-bold text-slate-500 mt-1 truncate max-w-[60px]">{p.name}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Music Control Bar */}

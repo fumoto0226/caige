@@ -45,6 +45,20 @@ const savePersistentUsername = (username) => {
   localStorage.setItem('caige_username', username);
 };
 
+// 获取当前房间ID
+const getCurrentRoomId = () => {
+  return localStorage.getItem('caige_current_room') || null;
+};
+
+// 保存当前房间ID
+const saveCurrentRoomId = (roomId) => {
+  if (roomId) {
+    localStorage.setItem('caige_current_room', roomId);
+  } else {
+    localStorage.removeItem('caige_current_room');
+  }
+};
+
 const App = () => {
   const [screen, setScreen] = useState('setup');
   
@@ -71,14 +85,27 @@ const App = () => {
   const [pendingRoomAction, setPendingRoomAction] = useState(null); // { type: 'create' | 'join', roomId?: string }
   const [savedUsername, setSavedUsername] = useState(() => getPersistentUsername());
 
-  // 检查 URL 参数中是否有房间号
+  // 检查 URL 参数中是否有房间号，或自动重新加入当前房间
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomIdFromUrl = urlParams.get('room');
+    const savedRoomId = getCurrentRoomId();
+    const savedName = getPersistentUsername();
+    
     if (roomIdFromUrl) {
-      // 显示用户名输入弹窗
+      // URL中有房间号，优先加入
       setPendingRoomAction({ type: 'join', roomId: roomIdFromUrl });
-      setShowUsernameModal(true);
+      
+      // 如果有保存的用户名，直接加入，否则显示输入框
+      if (savedName) {
+        handleUsernameSubmit(savedName);
+      } else {
+        setShowUsernameModal(true);
+      }
+    } else if (savedRoomId && savedName) {
+      // 没有URL参数，但有保存的房间ID和用户名，自动重新加入
+      setPendingRoomAction({ type: 'join', roomId: savedRoomId });
+      handleUsernameSubmit(savedName);
     }
   }, []);
 
@@ -153,6 +180,7 @@ const App = () => {
         
         const roomId = await createRoom(settings, player, shuffled);
         setCurrentRoomId(roomId);
+        saveCurrentRoomId(roomId); // 保存当前房间ID
         setGameSongs(shuffled);
         setCurrentSongIndex(0);
         
@@ -174,6 +202,7 @@ const App = () => {
         // 加入房间 - 使用房间的歌曲列表
         const roomData = await joinRoom(pendingRoomAction.roomId, player);
         setCurrentRoomId(pendingRoomAction.roomId);
+        saveCurrentRoomId(pendingRoomAction.roomId); // 保存当前房间ID
         
         // 使用房间的设置和歌曲
         setSettings(roomData.settings);
@@ -184,6 +213,7 @@ const App = () => {
         const unsubscribe = subscribeToRoom(pendingRoomAction.roomId, (roomData) => {
           if (!roomData) {
             // 房间被删除，直接返回首页
+            saveCurrentRoomId(null); // 清除保存的房间ID
             handleHome();
             return;
           }
@@ -261,8 +291,8 @@ const App = () => {
         setRoomUnsubscribe(null);
       }
       
+      saveCurrentRoomId(null); // 清除保存的房间ID
       setCurrentRoomId(null);
-      setCurrentUserId(null);
     }
     
     setScreen('setup');
