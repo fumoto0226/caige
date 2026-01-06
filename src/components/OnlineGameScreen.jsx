@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ARTISTS } from '../data/songs';
-import { Play, Pause, Send, Share2, PlayCircle, Crown, LogOut, Clock, Lock, Eye, X, Check } from 'lucide-react';
+import { Send, Share2, PlayCircle, Crown, LogOut, Clock, Eye, X, Check } from 'lucide-react';
 import InviteModal from './InviteModal';
 import { updateGameState, sendMessage, subscribeToRoom } from '../utils/roomManager';
 
@@ -340,30 +340,6 @@ const OnlineGameScreen = ({
     }
   };
 
-  const handleSliderChange = async (e) => {
-    // 只有房主可以拖动进度条，且必须播放完第一遍
-    if (!isHost || !hasGameStarted || !hasFinishedFirstPlay) return;
-    
-    const newTime = parseFloat(e.target.value);
-    setProgress(newTime);
-    if (audioRef.current) {
-      audioRef.current.currentTime = newTime;
-    }
-    
-    // 更新到 Firebase
-    if (roomId) {
-      await updateGameState(roomId, {
-        active: hasGameStarted,
-        currentIndex: songIndex,
-        isPlaying: isPlaying,
-        progress: newTime,
-        segmentStart: 0,
-        hasFinishedFirstPlay: hasFinishedFirstPlay,
-        isCountingDown: isCountingDown,
-        countdown: countdown,
-      });
-    }
-  };
 
   const handleExitRoom = () => {
     if (window.confirm("确定要退出房间吗？")) {
@@ -444,68 +420,29 @@ const OnlineGameScreen = ({
       </div>
 
       {/* Music Control Bar */}
-      <div className="mx-4 mt-2 bg-white rounded-2xl p-3 shadow-lg shadow-slate-200/50 z-10 shrink-0 border border-slate-100 relative">
-        <div className="flex items-center gap-3">
-          <button 
-             onClick={async () => {
-               // 只有房主可以控制，且第一遍播放完才能暂停
-               if (!hasGameStarted || !isHost || !hasFinishedFirstPlay) return;
-               const newPlayingState = !isPlaying;
-               setIsPlaying(newPlayingState);
-               
-               // 更新到 Firebase
-               if (roomId) {
-                 await updateGameState(roomId, {
-                   active: hasGameStarted,
-                   currentIndex: songIndex,
-                   isPlaying: newPlayingState,
-                   progress: progress,
-                   segmentStart: 0,
-                   hasFinishedFirstPlay: hasFinishedFirstPlay,
-                   isCountingDown: isCountingDown,
-                   countdown: countdown,
-                 });
-               }
-             }} 
-             disabled={!hasGameStarted || !isHost || !hasFinishedFirstPlay}
-             className={`p-2.5 rounded-full shadow-md active:scale-95 transition flex-shrink-0 ${hasGameStarted && isHost && hasFinishedFirstPlay ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' : 'bg-slate-100 text-slate-300'}`}
-          >
-            {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor"/>}
-          </button>
-          
-          <div className="flex-1 overflow-hidden relative h-8 flex items-center justify-center">
-             {isCountingDown ? (
-                 <div className="flex items-center gap-2 text-orange-500 font-black animate-pulse text-sm">
-                    <Clock size={16} /> {countdown}s
-                 </div>
-             ) : (
-                <span className="text-xs text-slate-400 font-semibold">
-                  {hasGameStarted ? '正在播放...' : '等待开始'}
-                </span>
-             )}
-          </div>
+      <div className="mx-4 mt-2 bg-white rounded-2xl p-4 shadow-lg shadow-slate-200/50 z-10 shrink-0 border border-slate-100 relative">
+        <div className="flex items-center justify-center gap-3">
+          {isCountingDown ? (
+            <div className="flex items-center gap-2 text-orange-500 font-black animate-pulse text-lg">
+              <Clock size={20} /> {countdown}s
+            </div>
+          ) : (
+            <span className="text-sm text-slate-400 font-semibold">
+              {hasGameStarted ? '正在播放...' : '等待开始'}
+            </span>
+          )}
         </div>
         
-        <div className="flex items-center gap-2 pt-2 relative">
-           <span className="text-[9px] font-bold text-slate-400 w-6 text-right">{Math.floor(progress)}s</span>
-           <div className="flex-1 relative">
-                <input
-                    type="range"
-                    min="0"
-                    max={maxDuration}
-                    step="0.1"
-                    value={progress}
-                    onChange={handleSliderChange}
-                    disabled={!hasGameStarted || !hasFinishedFirstPlay}
-                    className={`w-full h-1.5 rounded-lg appearance-none ${(!hasGameStarted || !hasFinishedFirstPlay) ? 'bg-slate-200 cursor-not-allowed' : 'bg-slate-100 accent-purple-500 cursor-pointer'}`}
+        <div className="flex items-center gap-2 pt-3 relative">
+           <span className="text-[10px] font-bold text-slate-400 w-8 text-right">{Math.floor(progress)}s</span>
+           <div className="flex-1 relative h-1.5 bg-slate-100 rounded-lg overflow-hidden">
+                {/* 只显示进度，不可拖动 */}
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-100"
+                  style={{ width: `${(progress / maxDuration) * 100}%` }}
                 />
-                {!hasFinishedFirstPlay && hasGameStarted && (
-                     <div className="absolute top-[-15px] left-1/2 -translate-x-1/2">
-                        <span className="text-[8px] flex items-center gap-1 text-slate-400 bg-white/80 px-1.5 rounded-full border border-slate-100"><Lock size={6}/> 播放完解锁</span>
-                     </div>
-                )}
            </div>
-           <span className="text-[9px] font-bold text-slate-400 w-6">{maxDuration}s</span>
+           <span className="text-[10px] font-bold text-slate-400 w-8">{maxDuration}s</span>
         </div>
 
         {!hasGameStarted && (
