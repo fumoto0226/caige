@@ -145,6 +145,30 @@ const OnlineGameScreen = ({
     }
   }, [gameState.isPlaying, gameState.progress, currentSong]);
 
+  // 所有玩家都监控本地播放时长，避免网络延迟导致超时播放
+  useEffect(() => {
+    if (!gameState.isPlaying || !audioRef.current || !currentSong) return;
+    
+    const startTime = currentSong.segmentStart || 0;
+    
+    const checkTimer = setInterval(() => {
+      if (!audioRef.current) return;
+      
+      const currentTime = audioRef.current.currentTime;
+      const elapsed = currentTime - startTime;
+      
+      // 本地检查：如果超过最大时长，立即暂停
+      if (elapsed >= maxDuration || audioRef.current.ended) {
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        clearInterval(checkTimer);
+      }
+    }, 100);
+    
+    return () => clearInterval(checkTimer);
+  }, [gameState.isPlaying, currentSong, maxDuration]);
+
   // 自动滚动消息
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
