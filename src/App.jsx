@@ -70,6 +70,32 @@ const App = () => {
     };
   }, [roomUnsubscribe]);
 
+  // 页面关闭或刷新时自动退出房间
+  useEffect(() => {
+    const handleBeforeUnload = async (e) => {
+      if (currentRoomId && currentUserId) {
+        // 使用 navigator.sendBeacon 发送退出请求（更可靠）
+        try {
+          await leaveRoom(currentRoomId, currentUserId);
+        } catch (error) {
+          console.error('退出房间失败:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // 组件卸载时也退出房间
+      if (currentRoomId && currentUserId) {
+        leaveRoom(currentRoomId, currentUserId).catch(err => 
+          console.error('组件卸载时退出房间失败:', err)
+        );
+      }
+    };
+  }, [currentRoomId, currentUserId]);
+
   const prepareSongs = () => {
     const allSongs = getAllSongs();
     const filteredSongs = allSongs.filter(s => settings.selectedArtistIds.includes(s.artistId));

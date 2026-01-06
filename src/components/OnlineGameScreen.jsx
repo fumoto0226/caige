@@ -145,10 +145,29 @@ const OnlineGameScreen = ({
     if (isPlaying && audioRef.current) {
       audioRef.current.play().catch(err => console.error('播放失败:', err));
       
+      let syncCounter = 0;
       timerRef.current = window.setInterval(() => {
         if (audioRef.current) {
           const currentTime = audioRef.current.currentTime;
           setProgress(currentTime);
+          
+          // 房主每秒同步一次进度到Firebase
+          if (isHost && roomId) {
+            syncCounter++;
+            if (syncCounter >= 10) { // 每秒同步一次 (100ms * 10 = 1s)
+              syncCounter = 0;
+              updateGameState(roomId, {
+                active: hasGameStarted,
+                currentIndex: songIndex,
+                isPlaying: true,
+                progress: currentTime,
+                segmentStart: 0,
+                hasFinishedFirstPlay: hasFinishedFirstPlay,
+                isCountingDown: isCountingDown,
+                countdown: countdown,
+              }).catch(err => console.error('同步进度失败:', err));
+            }
+          }
           
           if (currentTime >= maxDuration || audioRef.current.ended) {
             handlePlaybackFinish();
@@ -162,28 +181,46 @@ const OnlineGameScreen = ({
       stopTimer();
     }
     return () => stopTimer();
-  }, [isPlaying, maxDuration]);
+  }, [isPlaying, maxDuration, isHost, roomId, hasGameStarted, songIndex, hasFinishedFirstPlay, isCountingDown, countdown]);
 
   // Countdown Timer
   useEffect(() => {
     if (isCountingDown && countdown > 0) {
       countdownRef.current = window.setInterval(() => {
         setCountdown((prev) => {
-          if (prev <= 1) {
+          const newCountdown = prev - 1;
+          if (newCountdown <= 0) {
             stopCountdown();
             setIsCountingDown(false);
             // 时间到自动公布答案
-            handleRevealAnswer();
+            if (isHost) {
+              handleRevealAnswer();
+            }
             return 0;
           }
-          return prev - 1;
+          
+          // 房主同步倒计时到Firebase
+          if (isHost && roomId) {
+            updateGameState(roomId, {
+              active: hasGameStarted,
+              currentIndex: songIndex,
+              isPlaying: isPlaying,
+              progress: progress,
+              segmentStart: 0,
+              hasFinishedFirstPlay: hasFinishedFirstPlay,
+              isCountingDown: true,
+              countdown: newCountdown,
+            }).catch(err => console.error('同步倒计时失败:', err));
+          }
+          
+          return newCountdown;
         });
       }, 1000);
     } else {
       stopCountdown();
     }
     return () => stopCountdown();
-  }, [isCountingDown, countdown]);
+  }, [isCountingDown, countdown, isHost, roomId, hasGameStarted, songIndex, isPlaying, progress, hasFinishedFirstPlay]);
 
   const stopTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -273,11 +310,12 @@ const OnlineGameScreen = ({
 
     if (isCorrect && hasGameStarted) {
       setTimeout(async () => {
+        // 别人猜对不显示答案，只有自己猜对才显示答案
         const correctMessage = {
           id: Date.now().toString(),
           playerId: 'system',
           playerName: 'System',
-          text: `🎉 ${currentUser?.name} 猜对了！歌名是《${currentSong.title}》`,
+          text: `🎉 ${currentUser?.name} 猜对了！`,
           type: 'correct',
           timestamp: Date.now()
         };
@@ -285,6 +323,16 @@ const OnlineGameScreen = ({
         if (roomId) {
           await sendMessage(roomId, correctMessage);
         }
+        
+        // 给自己发一条包含答案的本地消息
+        setMessages(prev => [...prev, {
+          id: `local-${Date.now()}`,
+          playerId: 'system',
+          playerName: 'System',
+          text: `✅ 恭喜你猜对了！歌名是《${currentSong.title}》`,
+          type: 'correct',
+          timestamp: Date.now()
+        }]);
         
         // 更新分数（这里应该也同步到 Firebase）
         setPlayers(prev => prev.map(p => p.id === currentUserId ? { ...p, score: p.score + 20 } : p));
