@@ -11,6 +11,7 @@ const OnlineGameScreen = ({
   currentSong,
   songIndex,
   totalSongs,
+  gameSongs,
   onNextSong,
   onEndGame,
   roomId,
@@ -55,6 +56,37 @@ const OnlineGameScreen = ({
       }
     };
   }, []);
+
+  // 预加载所有歌曲
+  useEffect(() => {
+    // 在进入房间后开始预加载
+    const preloadAudio = (url) => {
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = url;
+      // 不需要保存引用，浏览器会自动缓存
+    };
+
+    // 延迟预加载，避免影响首次播放
+    const timer = setTimeout(() => {
+      // 从当前歌曲的下一首开始预加载
+      for (let i = songIndex + 1; i < totalSongs; i++) {
+        const song = gameSongs[i];
+        if (song && song.path) {
+          preloadAudio(song.path);
+        }
+      }
+      // 也预加载前面的歌曲（如果有重播需求）
+      for (let i = 0; i < songIndex; i++) {
+        const song = gameSongs[i];
+        if (song && song.path) {
+          preloadAudio(song.path);
+        }
+      }
+    }, 2000); // 延迟2秒开始预加载
+
+    return () => clearTimeout(timer);
+  }, [songIndex, gameSongs, totalSongs]);
 
   // 订阅房间变化 - 所有人都从Firebase同步状态
   useEffect(() => {
@@ -103,10 +135,23 @@ const OnlineGameScreen = ({
     
     audioRef.current.src = currentSong.path;
     audioRef.current.load();
-    audioRef.current.currentTime = 0;
+    
+    // 设置起始位置（随机或从头开始）
+    if (settings.playbackPosition === 'RANDOM' && !settings.isFullSong) {
+      // 随机位置：确保至少能播放完整的durationSeconds
+      audioRef.current.onloadedmetadata = () => {
+        const duration = audioRef.current.duration;
+        const maxStart = Math.max(0, duration - settings.durationSeconds);
+        const randomStart = Math.random() * maxStart;
+        audioRef.current.currentTime = randomStart;
+      };
+    } else {
+      audioRef.current.currentTime = 0;
+    }
+    
     // 重置CSS动画
     setAnimationKey(prev => prev + 1);
-  }, [currentSong]);
+  }, [currentSong, settings]);
 
   // 房主专用：播放进度监控
   useEffect(() => {
@@ -322,6 +367,7 @@ const OnlineGameScreen = ({
     if (!isHost) return;
     
     const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+    const isLastSong = songIndex + 1 >= totalSongs;
     
     // 发送答案公布消息
     await sendMessage(roomId, {
@@ -333,17 +379,36 @@ const OnlineGameScreen = ({
       timestamp: Date.now()
     });
     
-    // 等待一下再发送等待提示
-    setTimeout(async () => {
-      await sendMessage(roomId, {
-        id: `wait-next-${Date.now()}`,
-        playerId: 'system',
-        playerName: 'System',
-        text: '⏸ 等待房主播放下一题...',
-        type: 'system',
-        timestamp: Date.now()
-      });
-    }, 500);
+    if (isLastSong) {
+      // 最后一题，2秒后自动跳转结算
+      setTimeout(async () => {
+        await sendMessage(roomId, {
+          id: `game-end-${Date.now()}`,
+          playerId: 'system',
+          playerName: 'System',
+          text: '🎊 游戏结束！正在跳转结算页面...',
+          type: 'system',
+          timestamp: Date.now()
+        });
+        
+        // 再等1秒后跳转
+        setTimeout(() => {
+          onEndGame();
+        }, 1000);
+      }, 2000);
+    } else {
+      // 不是最后一题，显示等待提示
+      setTimeout(async () => {
+        await sendMessage(roomId, {
+          id: `wait-next-${Date.now()}`,
+          playerId: 'system',
+          playerName: 'System',
+          text: '⏸ 等待房主播放下一题...',
+          type: 'system',
+          timestamp: Date.now()
+        });
+      }, 500);
+    }
     
     await updateGameState(roomId, {
       ...gameState,

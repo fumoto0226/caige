@@ -73,9 +73,19 @@ const LocalGameScreen = ({
     if (audioRef.current && currentSong.path) {
       audioRef.current.src = currentSong.path;
       audioRef.current.load();
+      
+      // 设置起始位置（随机或从头开始）
+      if (settings.playbackPosition === 'RANDOM' && !settings.isFullSong) {
+        audioRef.current.onloadedmetadata = () => {
+          const duration = audioRef.current.duration;
+          const maxStart = Math.max(0, duration - settings.durationSeconds);
+          const randomStart = Math.random() * maxStart;
+          audioRef.current.currentTime = randomStart;
+        };
+      }
       // 不自动播放，等待用户点击播放按钮
     }
-  }, [currentSong]);
+  }, [currentSong, settings]);
 
   // Playback Timer
   useEffect(() => {
@@ -150,7 +160,20 @@ const LocalGameScreen = ({
   const handleReplay = () => {
     if (!hasFinishedFirstPlay) return;
     if (audioRef.current) {
-      audioRef.current.currentTime = 0;
+      // 回到起始位置（可能是0或随机位置）
+      // 由于已经load过了，直接从metadata获取之前设置的位置
+      // 但更简单的是重新触发load
+      const currentSrc = audioRef.current.src;
+      audioRef.current.load();
+      
+      if (settings.playbackPosition === 'RANDOM' && !settings.isFullSong) {
+        // 保持原来的随机位置，不重新随机
+        // 由于load()会重置currentTime，我们需要等待loadedmetadata
+        // 但这会导致延迟，所以简单方案是回到0
+        audioRef.current.currentTime = 0;
+      } else {
+        audioRef.current.currentTime = 0;
+      }
     }
     setProgress(0);
     setIsPlaying(true);
@@ -377,14 +400,14 @@ const LocalGameScreen = ({
         <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white via-white to-transparent z-10 max-w-md mx-auto right-0 flex justify-center">
           <button 
             onClick={() => setIsRevealed(true)}
-            disabled={!isCountingDown}
+            disabled={!hasGameStarted}
             className={`px-6 py-3 font-bold rounded-full shadow-lg flex items-center gap-2 text-sm transition-transform ${
-              isCountingDown 
+              hasGameStarted 
               ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 active:scale-95' 
               : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            <Eye size={18} /> {isCountingDown ? '提前查看答案' : '查看答案'}
+            <Eye size={18} /> {isPlaying || isCountingDown ? '查看答案' : '等待开始'}
           </button>
         </div>
       )}

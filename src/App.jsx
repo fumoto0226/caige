@@ -277,16 +277,40 @@ const App = () => {
     setScreen('results');
   };
 
-  const handleRestart = () => {
+  const handleRestart = async () => {
     if (settings.mode === GameMode.ONLINE && currentRoomId) {
-      // 线上游戏重开 - 保持在同一个房间，重置分数
-      setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
+      // 线上游戏重开 - 刷新题库，重置状态到"未开始"
       const shuffled = prepareSongs();
-      if (shuffled) {
-        setGameSongs(shuffled);
-        setCurrentSongIndex(0);
-        setScreen('game');
-      }
+      if (!shuffled) return;
+      
+      // 重置玩家分数
+      setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
+      
+      // 更新房间：新的歌曲列表 + 重置游戏状态
+      const { updateDoc, doc } = await import('firebase/firestore');
+      const { db } = await import('./firebase');
+      const roomRef = doc(db, 'rooms', currentRoomId);
+      
+      await updateDoc(roomRef, {
+        songList: shuffled,
+        players: players.map(p => ({ ...p, score: 0 })),
+        messages: [], // 清空聊天记录
+        gameState: {
+          active: false,
+          currentIndex: 0,
+          isPlaying: false,
+          progress: 0,
+          hasFinishedFirstPlay: false,
+          isCountingDown: false,
+          countdown: 0,
+          correctPlayers: []
+        },
+        updatedAt: Date.now()
+      });
+      
+      setGameSongs(shuffled);
+      setCurrentSongIndex(0);
+      setScreen('game');
     } else {
       // 本地游戏重开
       setPlayers(prev => prev.map(p => ({ ...p, score: 0 })));
@@ -363,6 +387,7 @@ const App = () => {
             currentSong={gameSongs[currentSongIndex]}
             songIndex={currentSongIndex}
             totalSongs={gameSongs.length}
+            gameSongs={gameSongs}
             onNextSong={handleNextSong}
             onEndGame={handleEndGame}
             roomId={currentRoomId}
