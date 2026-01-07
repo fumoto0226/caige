@@ -229,7 +229,7 @@ const OnlineGameScreen = ({
         timerRef.current = null;
       }
     }
-  }, [gameState.isPlaying, currentSong, maxDuration, isHost, roomId, gameState, players, settings]);
+  }, [gameState.isPlaying, gameState.currentIndex, gameSongs, maxDuration, isHost, roomId, players, settings]);
 
   // 监听题目变化，重置本地答题标记
   useEffect(() => {
