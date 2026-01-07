@@ -17,21 +17,6 @@ body {
   background-color: #f3f4f6;
 }
 
-/* 移动端视口高度适配，避免浏览器地址栏遮挡 */
-.mobile-height {
-  height: 100vh;
-  height: 100dvh; /* 动态视口高度，自动排除浏览器UI */
-}
-
-@supports not (height: 100dvh) {
-  /* 降级方案：对于不支持dvh的浏览器，使用calc减去估计的地址栏高度 */
-  @media (max-width: 640px) {
-    .mobile-height {
-      height: calc(100vh - 60px);
-    }
-  }
-}
-
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
 }

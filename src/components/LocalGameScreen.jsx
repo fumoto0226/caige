@@ -376,11 +376,6 @@ const LocalGameScreen = ({
             <span>{maxDuration}s</span>
           </div>
 
-          {/* 说明文字 */}
-          <p className="text-[11px] text-slate-400 text-center mb-3 leading-relaxed">
-            本地同玩不需要<span className="font-bold text-slate-600">输入答案</span>，猜出歌曲后点击<span className="font-bold text-slate-600">提前查看答案</span>验证
-          </p>
-
           <div className="flex justify-center gap-6 items-center">
             <button 
               onClick={handleReplay} 
@@ -398,6 +393,11 @@ const LocalGameScreen = ({
             </button>
           </div>
         </div>
+
+        {/* 说明文字 - 在白色卡片外面下方 */}
+        <p className="text-[11px] text-slate-500 text-center mt-3 leading-relaxed px-4">
+          本地同玩不需要<span className="font-semibold text-green-600">输入答案</span>，猜出歌曲后点击<span className="font-semibold text-green-600">提前查看答案</span>验证
+        </p>
       </div>
 
       {!isRevealed && (

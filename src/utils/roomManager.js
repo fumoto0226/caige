@@ -300,7 +300,16 @@ export const unmarkPlayerInResults = async (roomId, playerId) => {
 
 // 踢出玩家
 export const kickPlayer = async (roomId, playerId, kickerName) => {
+  const roomRef = doc(db, 'rooms', roomId);
+  const roomSnap = await getDoc(roomRef);
+  
+  if (!roomSnap.exists()) return;
+  
+  const roomData = roomSnap.data();
+  const kickedPlayer = roomData.players.find(p => p.id === playerId);
+  const kickedPlayerName = kickedPlayer?.name || '玩家';
+  
   await leaveRoom(roomId, playerId);
-  await addSystemMessage(roomId, `🚫 ${kickerName} 将玩家踢出了房间`);
+  await addSystemMessage(roomId, `🚫 ${kickedPlayerName} 被踢出了房间`);
 };
 

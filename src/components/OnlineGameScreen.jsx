@@ -228,27 +228,23 @@ const OnlineGameScreen = ({
   useEffect(() => {
     if (!gameSongs || gameSongs.length === 0) return;
     
-    const preload = async () => {
-      const audioCache = {};
-      
-      gameSongs.forEach((song) => {
-        const audio = new Audio();
-        audio.preload = 'auto';
-        audio.src = song.path;
-        audioCache[song.id] = audio;
-        
-        // 开始加载
-        audio.load();
-      });
-      
-      setPreloadedAudios(audioCache);
-    };
+    const audioCache = {};
     
-    preload();
+    gameSongs.forEach((song) => {
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = song.path;
+      audioCache[song.id] = audio;
+      
+      // 开始加载
+      audio.load();
+    });
+    
+    setPreloadedAudios(audioCache);
     
     // 清理函数
     return () => {
-      Object.values(preloadedAudios).forEach(audio => {
+      Object.values(audioCache).forEach(audio => {
         audio.pause();
         audio.src = '';
       });

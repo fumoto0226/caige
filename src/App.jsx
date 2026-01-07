@@ -436,7 +436,7 @@ const App = () => {
   return (
     <div className="w-full h-screen bg-slate-50 flex justify-center items-center font-sans">
       {/* Mobile Container Simulator */}
-      <div className="w-full max-w-md mobile-height bg-white shadow-2xl overflow-hidden relative sm:rounded-[2.5rem] sm:h-[92vh] sm:border-8 sm:border-slate-100 ring-1 ring-slate-900/5">
+      <div className="w-full max-w-md h-full bg-white shadow-2xl overflow-hidden relative sm:rounded-[2.5rem] sm:h-[92vh] sm:border-8 sm:border-slate-100 ring-1 ring-slate-900/5">
         
         {screen === 'setup' && (
           <SetupScreen 
