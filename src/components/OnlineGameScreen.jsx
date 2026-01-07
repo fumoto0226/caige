@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ARTISTS } from '../data/songs';
-import { Send, Share2, PlayCircle, Crown, LogOut, Clock, Eye, UserX, RotateCcw } from 'lucide-react';
+import { Send, Share2, PlayCircle, Crown, LogOut, Clock, Eye, X, RotateCcw } from 'lucide-react';
 import InviteModal from './InviteModal';
 import { updateGameState, sendMessage, subscribeToRoom, kickPlayer } from '../utils/roomManager';
 
@@ -22,7 +22,6 @@ const OnlineGameScreen = ({
   // 本地UI状态 - 仅用于输入和显示
   const [inputVal, setInputVal] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showKickMenu, setShowKickMenu] = useState(null); // playerId to show kick menu for
   const [playersInResults, setPlayersInResults] = useState([]); // 正在查看结算的玩家ID列表
   const [localProgress, setLocalProgress] = useState(0); // 本地真实播放进度（秒）
   const [hasAnsweredCurrentQuestion, setHasAnsweredCurrentQuestion] = useState(false); // 本地标记：当前题目是否已答对
@@ -577,12 +576,7 @@ const OnlineGameScreen = ({
                     isMe 
                       ? 'ring-2 ring-green-400 shadow-lg shadow-green-200' 
                       : 'shadow-md'
-                  } ${isHost && !isMe ? 'cursor-pointer' : ''}`}
-                  onClick={() => {
-                    if (isHost && !isMe) {
-                      setShowKickMenu(showKickMenu === p.id ? null : p.id);
-                    }
-                  }}
+                  }`}
                 >
                   {p.avatar}
                 </div>
@@ -591,19 +585,20 @@ const OnlineGameScreen = ({
                     <Crown size={10} className="text-yellow-900" />
                   </div>
                 )}
-                {/* 踢人菜单 */}
-                {showKickMenu === p.id && (
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-white rounded-lg shadow-xl border-2 border-red-200 p-2 z-50 whitespace-nowrap">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
+                {/* 房主可以踢人：显示叉叉按钮 */}
+                {isHost && !isMe && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`确定要将 ${p.name} 踢出房间吗？`)) {
                         handleKick(p.id);
-                      }}
-                      className="flex items-center gap-1 px-3 py-1.5 text-red-500 hover:bg-red-50 rounded-md text-xs font-bold"
-                    >
-                      <UserX size={14} /> 踢出房间
-                    </button>
-                  </div>
+                      }
+                    }}
+                    className="absolute -top-1 -left-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 active:scale-90 transition z-10"
+                    title={`踢出 ${p.name}`}
+                  >
+                    <X size={12} />
+                  </button>
                 )}
                 <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-[9px] font-black shadow-sm border-2 border-white">
                   {p.score || 0}
