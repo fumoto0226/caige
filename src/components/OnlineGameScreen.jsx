@@ -308,7 +308,7 @@ const OnlineGameScreen = ({
     };
   }, [isHost, gameState.isCountingDown, gameState.countdown, roomId]);
 
-  // 房主：公布答案（需要在handlePlaybackFinish之前定义，避免循环依赖）
+  // 房主：公布答案（需要在handlePlaybackFinish之前定义）
   const handleRevealAnswer = useCallback(async () => {
     if (!isHost) return;
     
