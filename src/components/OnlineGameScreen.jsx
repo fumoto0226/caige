@@ -66,11 +66,18 @@ const OnlineGameScreen = ({
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
+      audioRef.current.loop = false; // 确保不循环播放
     }
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
+        audioRef.current.src = ''; // 清空音频源
         audioRef.current = null;
+      }
+      // 清理计时器
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, []);
@@ -181,9 +188,15 @@ const OnlineGameScreen = ({
     const currentSrc = audioRef.current.src;
     const needsReload = !currentSrc || !currentSrc.includes(song.path);
     
+    // 先确保音频不会循环播放
+    if (audioRef.current) {
+      audioRef.current.loop = false; // 关键：禁用循环
+    }
+    
     if (needsReload) {
       console.log(`🎵 [加载新歌] ${song.title}`);
       audioRef.current.pause();
+      audioRef.current.loop = false; // 确保新歌也不循环
       audioRef.current.src = song.path;
       audioRef.current.load();
       
@@ -245,7 +258,12 @@ const OnlineGameScreen = ({
         setLocalProgress(Math.min(elapsed, maxDuration));
         
         if (elapsed >= maxDuration || audioRef.current.ended) {
+          console.log(`⏹️  [播放结束] elapsed:${elapsed.toFixed(1)}s, maxDuration:${maxDuration}s`);
+          
+          // 强制暂停并重置到起始位置
           audioRef.current.pause();
+          audioRef.current.currentTime = startTime;
+          
           setLocalProgress(maxDuration);
           
           if (timerRef.current) {
@@ -267,8 +285,17 @@ const OnlineGameScreen = ({
       };
     } else {
       // 暂停播放
-      console.log(`⏸️  [暂停]`);
-      audioRef.current.pause();
+      console.log(`⏸️  [暂停] paused:${audioRef.current.paused}, currentTime:${audioRef.current.currentTime}`);
+      
+      // 强制暂停，即使音频正在播放
+      if (!audioRef.current.paused) {
+        audioRef.current.pause();
+      }
+      
+      // 清理所有播放相关的事件监听
+      audioRef.current.oncanplay = null;
+      audioRef.current.onended = null;
+      
       setLocalProgress(0);
       
       if (timerRef.current) {
