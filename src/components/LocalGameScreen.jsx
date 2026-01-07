@@ -395,8 +395,8 @@ const LocalGameScreen = ({
         </div>
 
         {/* 说明文字 - 在白色卡片外面下方 */}
-        <p className="text-[11px] text-slate-500 text-center mt-3 leading-relaxed px-4">
-          本地同玩不需要<span className="font-semibold text-green-600">输入答案</span>，猜出歌曲后点击<span className="font-semibold text-green-600">提前查看答案</span>验证
+        <p className="text-[11px] text-slate-500 text-center leading-relaxed px-4">
+          本地同玩<span className="font-semibold text-green-600">不需要输入答案</span>，猜出歌曲后点击<span className="font-semibold text-green-600">提前查看答案</span>验证
         </p>
       </div>
 

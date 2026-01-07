@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ARTISTS } from '../data/songs';
 import { Send, Share2, PlayCircle, Crown, LogOut, Clock, Eye, X, RotateCcw } from 'lucide-react';
 import InviteModal from './InviteModal';
@@ -171,7 +171,7 @@ const OnlineGameScreen = ({
       const startTime = currentSong.segmentStart || 0;
       
       // 本地监控播放进度和时长（像本地游戏一样）
-      const localTimer = setInterval(() => {
+      timerRef.current = setInterval(() => {
         if (!audioRef.current) return;
         
         const currentTime = audioRef.current.currentTime;
@@ -184,7 +184,11 @@ const OnlineGameScreen = ({
         if (elapsed >= maxDuration || audioRef.current.ended) {
           audioRef.current.pause();
           setLocalProgress(maxDuration);
-          clearInterval(localTimer);
+          
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
           
           // 如果是房主，触发完成逻辑
           if (isHost) {
@@ -193,13 +197,24 @@ const OnlineGameScreen = ({
         }
       }, 100);
       
-      return () => clearInterval(localTimer);
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
     } else {
       // 暂停播放
       audioRef.current.pause();
       setLocalProgress(0);
+      
+      // 清理计时器
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
-  }, [gameState.isPlaying, currentSong, maxDuration, isHost]);
+  }, [gameState.isPlaying, currentSong, maxDuration, isHost, roomId, gameState, players, settings]);
 
   // 监听题目变化，重置本地答题标记
   useEffect(() => {
