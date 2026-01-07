@@ -378,81 +378,111 @@ const OnlineGameScreen = ({
     setInputVal('');
 
     if (isCorrect && gameState.active) {
-      // 先获取最新的Firebase数据，确保检查基于最新状态
-      const { updateDoc, doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+      // 使用事务确保原子性操作，避免重复加分
+      const { runTransaction, doc: firestoreDoc } = await import('firebase/firestore');
       const { db } = await import('../firebase');
       const roomRef = firestoreDoc(db, 'rooms', roomId);
       
-      const roomSnap = await getDoc(roomRef);
-      const latestRoomData = roomSnap.data();
-      const latestGameState = latestRoomData.gameState || {};
-      const latestCorrectPlayers = latestGameState.correctPlayers || [];
-      const latestPlayers = latestRoomData.players || [];
-      
-      // 检查是否已经答对过（基于最新的Firebase数据，避免重复加分）
-      if (latestCorrectPlayers.includes(currentUserId)) {
-        return; // 已经答对过，不再处理
-      }
-      
-      // 立即更新本地分数
-      const currentPlayer = players.find(p => p.id === currentUserId);
-      
-      // 计算得分：第一个10分，第二个8分，第三个及以后6分（基于最新数据）
-      const rank = latestCorrectPlayers.length + 1;
-      let score = 6; // 默认6分
-      if (rank === 1) score = 10;
-      else if (rank === 2) score = 8;
-      
-      // 更新Firebase中的答对列表和玩家分数
-      const newCorrectPlayers = [...latestCorrectPlayers, currentUserId];
-      
-      // 基于最新数据更新分数
-      const updatedPlayers = latestPlayers.map(p => 
-        p.id === currentUserId ? { ...p, score: (p.score || 0) + score } : p
-      );
-      
-      await updateDoc(roomRef, {
-        'gameState.correctPlayers': newCorrectPlayers,
-        players: updatedPlayers,
-        updatedAt: Date.now()
-      });
-      
-      // 立即更新本地玩家分数
-      setPlayers(updatedPlayers);
-      
-      // 延迟发送系统消息
-      setTimeout(async () => {
-        const artistInfo = ARTISTS.find(a => a.id === currentSong.artistId);
-        
-        // 系统消息：XX答对了！（+X分）- 不显示答案
-        await sendMessage(roomId, {
-          id: Date.now().toString(),
-          playerId: 'system',
-          playerName: 'System',
-          text: `🎉 ${currentPlayer?.name} 答对了！（+${score}分）`,
-          type: 'correct',
-          timestamp: Date.now()
+      try {
+        const result = await runTransaction(db, async (transaction) => {
+          const roomDoc = await transaction.get(roomRef);
+          
+          if (!roomDoc.exists()) {
+            throw new Error('房间不存在');
+          }
+          
+          const roomData = roomDoc.data();
+          const currentGameState = roomData.gameState || {};
+          const currentCorrectPlayers = currentGameState.correctPlayers || [];
+          const currentPlayers = roomData.players || [];
+          
+          // 在事务中检查是否已经答对过
+          if (currentCorrectPlayers.includes(currentUserId)) {
+            return { alreadyAnswered: true }; // 已经答对过
+          }
+          
+          // 计算得分：第一个10分，第二个8分，第三个及以后6分
+          const rank = currentCorrectPlayers.length + 1;
+          let score = 6;
+          if (rank === 1) score = 10;
+          else if (rank === 2) score = 8;
+          
+          // 更新答对列表
+          const newCorrectPlayers = [...currentCorrectPlayers, currentUserId];
+          
+          // 更新玩家分数
+          const updatedPlayers = currentPlayers.map(p => 
+            p.id === currentUserId ? { ...p, score: (p.score || 0) + score } : p
+          );
+          
+          // 在事务中更新
+          transaction.update(roomRef, {
+            'gameState.correctPlayers': newCorrectPlayers,
+            players: updatedPlayers,
+            updatedAt: Date.now()
+          });
+          
+          return { 
+            alreadyAnswered: false, 
+            score, 
+            rank,
+            updatedPlayers,
+            newCorrectPlayers,
+            totalPlayers: currentPlayers.length
+          };
         });
         
-        // 本地消息：给自己显示完整答案
-        setMessages(prev => [...prev, {
-          id: `local-${Date.now()}`,
-          playerId: 'system',
-          playerName: 'System',
-          text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artistInfo?.name}（+${score}分）`,
-          type: 'correct',
-          timestamp: Date.now(),
-          isLocal: true
-        }]);
-        
-        // 检查是否所有人都答对了（使用最新的玩家数量）
-        if (isHost && newCorrectPlayers.length >= latestPlayers.length) {
-          // 所有人都答对了，1秒后自动公布答案进入下一题
-          setTimeout(() => {
-            handleRevealAnswer();
-          }, 1000);
+        // 如果已经答对过，直接返回
+        if (result.alreadyAnswered) {
+          return;
         }
-      }, 300);
+        
+        // 立即更新本地玩家分数
+        setPlayers(result.updatedPlayers);
+        
+        const { score, newCorrectPlayers, totalPlayers } = result;
+        const currentPlayer = players.find(p => p.id === currentUserId);
+        
+        // 延迟发送系统消息
+        setTimeout(async () => {
+          const artistInfo = ARTISTS.find(a => a.id === currentSong.artistId);
+          
+          // 系统消息：XX答对了！（+X分）- 不显示答案
+          await sendMessage(roomId, {
+            id: Date.now().toString(),
+            playerId: 'system',
+            playerName: 'System',
+            text: `🎉 ${currentPlayer?.name} 答对了！（+${score}分）`,
+            type: 'correct',
+            timestamp: Date.now()
+          });
+          
+          // 本地消息：给自己显示完整答案
+          setMessages(prev => [...prev, {
+            id: `local-${Date.now()}`,
+            playerId: 'system',
+            playerName: 'System',
+            text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artistInfo?.name}（+${score}分）`,
+            type: 'correct',
+            timestamp: Date.now(),
+            isLocal: true
+          }]);
+          
+          // 检查是否所有人都答对了（使用事务返回的最新玩家数量）
+          if (isHost && newCorrectPlayers.length >= totalPlayers) {
+            // 所有人都答对了，1秒后自动公布答案进入下一题
+            setTimeout(() => {
+              handleRevealAnswer();
+            }, 1000);
+          }
+        }, 300);
+      } catch (error) {
+        console.error('答题处理失败:', error);
+        // 如果是因为已经答对过导致的错误，静默处理
+        if (error.message && error.message.includes('已经答对')) {
+          return;
+        }
+      }
     }
   };
 
