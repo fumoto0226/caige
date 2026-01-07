@@ -266,7 +266,9 @@ const App = () => {
           
           // 同步当前题目索引（重要：切换题目时同步）
           if (roomData.gameState) {
-            setCurrentSongIndex(roomData.gameState.currentIndex || 0);
+            const newIndex = roomData.gameState.currentIndex || 0;
+            console.log(`📊 [App.jsx 房主同步] currentIndex: ${newIndex}`);
+            setCurrentSongIndex(newIndex);
           }
         });
         setRoomUnsubscribe(() => unsubscribe);
@@ -322,7 +324,9 @@ const App = () => {
           
           // 同步当前题目索引（重要：切换题目时同步）
           if (roomData.gameState) {
-            setCurrentSongIndex(roomData.gameState.currentIndex || 0);
+            const newIndex = roomData.gameState.currentIndex || 0;
+            console.log(`📊 [App.jsx 加入者同步] currentIndex: ${newIndex}`);
+            setCurrentSongIndex(newIndex);
           }
         });
         setRoomUnsubscribe(() => unsubscribe);

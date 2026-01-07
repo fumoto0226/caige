@@ -124,6 +124,7 @@ const OnlineGameScreen = ({
       
       // 同步游戏状态（所有人，包括房主）
       if (roomData.gameState) {
+        console.log(`🔄 [同步状态] currentIndex:${roomData.gameState.currentIndex}, isPlaying:${roomData.gameState.isPlaying}`);
         setGameState(roomData.gameState);
         // 同步正在查看结算的玩家列表
         if (roomData.gameState.playersInResults) {
@@ -164,9 +165,11 @@ const OnlineGameScreen = ({
       return;
     }
     
+    console.log(`🎮 [播放控制] isPlaying:${gameState.isPlaying}, 歌曲:${currentSong.title}, 索引:${songIndex}`);
+    
     if (gameState.isPlaying) {
       // 开始播放
-      console.log('开始播放:', currentSong.title, '索引:', songIndex);
+      console.log(`▶️  [开始播放] ${currentSong.title}`);
       audioRef.current.play().catch(err => console.error('播放失败:', err));
       
       const startTime = currentSong.segmentStart || 0;
@@ -206,7 +209,7 @@ const OnlineGameScreen = ({
       };
     } else {
       // 暂停播放
-      console.log('暂停播放');
+      console.log(`⏸️  [暂停播放]`);
       audioRef.current.pause();
       setLocalProgress(0);
       
@@ -216,7 +219,7 @@ const OnlineGameScreen = ({
         timerRef.current = null;
       }
     }
-  }, [gameState.isPlaying, currentSong, songIndex, maxDuration, isHost, handlePlaybackFinish]);
+  }, [gameState.isPlaying, currentSong, maxDuration, isHost, roomId, gameState, players, settings]);
 
   // 监听题目变化，重置本地答题标记
   useEffect(() => {
@@ -244,6 +247,11 @@ const OnlineGameScreen = ({
   useEffect(() => {
     if (!currentSong || !audioRef.current) return;
     
+    console.log(`🎵 [歌曲切换] 索引:${songIndex}, 歌曲:${currentSong.title}`);
+    
+    // 先暂停当前播放
+    audioRef.current.pause();
+    
     // 直接从本地加载音频文件
     audioRef.current.src = currentSong.path;
     audioRef.current.load();
@@ -254,6 +262,7 @@ const OnlineGameScreen = ({
     const setStartPosition = () => {
       if (audioRef.current) {
         audioRef.current.currentTime = startTime;
+        console.log(`⏱️  [音频就绪] 起始位置:${startTime}s`);
       }
     };
     
@@ -268,7 +277,7 @@ const OnlineGameScreen = ({
     
     // 重置当前题目答题状态
     setHasAnsweredCurrentQuestion(false);
-  }, [currentSong]);
+  }, [currentSong, songIndex]);
 
 
   // 房主专用：倒计时监控
@@ -308,67 +317,8 @@ const OnlineGameScreen = ({
     };
   }, [isHost, gameState.isCountingDown, gameState.countdown, roomId]);
 
-  // 房主：公布答案（需要在handlePlaybackFinish之前定义）
-  const handleRevealAnswer = useCallback(async () => {
-    if (!isHost) return;
-    
-    const artist = ARTISTS.find(a => a.id === currentSong.artistId);
-    const isLastSong = songIndex + 1 >= totalSongs;
-    
-    // 发送答案公布消息
-    await sendMessage(roomId, {
-      id: `reveal-${Date.now()}`,
-      playerId: 'system',
-      playerName: 'System',
-      text: `🎵 答案揭晓：《${currentSong.title}》 - ${artist?.name}`,
-      type: 'reveal',
-      timestamp: Date.now()
-    });
-    
-    if (isLastSong) {
-      // 最后一题，标记游戏结束
-      await updateGameState(roomId, {
-        ...gameState,
-        active: false,
-        isCountingDown: false,
-        countdown: 0,
-        gameEnded: true, // 标记游戏结束
-      });
-      
-      setTimeout(async () => {
-        await sendMessage(roomId, {
-          id: `game-end-${Date.now()}`,
-          playerId: 'system',
-          playerName: 'System',
-          text: '🎊 游戏结束！点击下方按钮查看结算...',
-          type: 'system',
-          timestamp: Date.now()
-        });
-      }, 500);
-    } else {
-      // 不是最后一题，显示等待提示
-      await updateGameState(roomId, {
-        ...gameState,
-        active: false,
-        isCountingDown: false,
-        countdown: 0
-      });
-      
-      setTimeout(async () => {
-        await sendMessage(roomId, {
-          id: `wait-next-${Date.now()}`,
-          playerId: 'system',
-          playerName: 'System',
-          text: '⏸ 等待房主播放下一题...',
-          type: 'system',
-          timestamp: Date.now()
-        });
-      }, 500);
-    }
-  }, [isHost, currentSong, songIndex, totalSongs, roomId, gameState]);
-
   // 房主：播放完毕处理
-  const handlePlaybackFinish = useCallback(async () => {
+  const handlePlaybackFinish = async () => {
     if (!isHost) return;
     
     const timeLimit = settings.timeLimit > 0 ? settings.timeLimit : 0;
@@ -389,7 +339,7 @@ const OnlineGameScreen = ({
         countdown: timeLimit
       });
     }
-  }, [isHost, settings, gameState, players, roomId, handleRevealAnswer]);
+  };
 
   // 房主：开始游戏/播放下一题
   const handleHostStart = async () => {
@@ -576,6 +526,64 @@ const OnlineGameScreen = ({
   };
 
   // 房主：提前公布答案
+  const handleRevealAnswer = async () => {
+    if (!isHost) return;
+    
+    const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+    const isLastSong = songIndex + 1 >= totalSongs;
+    
+    // 发送答案公布消息
+    await sendMessage(roomId, {
+      id: `reveal-${Date.now()}`,
+      playerId: 'system',
+      playerName: 'System',
+      text: `🎵 答案揭晓：《${currentSong.title}》 - ${artist?.name}`,
+      type: 'reveal',
+      timestamp: Date.now()
+    });
+    
+    if (isLastSong) {
+      // 最后一题，标记游戏结束
+      await updateGameState(roomId, {
+        ...gameState,
+        active: false,
+        isCountingDown: false,
+        countdown: 0,
+        gameEnded: true, // 标记游戏结束
+      });
+      
+      setTimeout(async () => {
+        await sendMessage(roomId, {
+          id: `game-end-${Date.now()}`,
+          playerId: 'system',
+          playerName: 'System',
+          text: '🎊 游戏结束！点击下方按钮查看结算...',
+          type: 'system',
+          timestamp: Date.now()
+        });
+      }, 500);
+    } else {
+      // 不是最后一题，显示等待提示
+      await updateGameState(roomId, {
+        ...gameState,
+        active: false,
+        isCountingDown: false,
+        countdown: 0
+      });
+      
+      setTimeout(async () => {
+        await sendMessage(roomId, {
+          id: `wait-next-${Date.now()}`,
+          playerId: 'system',
+          playerName: 'System',
+          text: '⏸ 等待房主播放下一题...',
+          type: 'system',
+          timestamp: Date.now()
+        });
+      }, 500);
+    }
+  };
+
   if (!currentSong) return null;
 
   return (
