@@ -49,6 +49,11 @@ const OnlineGameScreen = ({
   const maxDuration = settings.isFullSong ? 180 : settings.durationSeconds;
   const isHost = currentUserId && players.length > 0 && players[0]?.id === currentUserId;
 
+  // 调试：监控props变化
+  useEffect(() => {
+    console.log(`🎯 [Props变化] songIndex:${songIndex}, currentSong:${currentSong?.title || 'null'}, gameSongs长度:${gameSongs?.length || 0}`);
+  }, [songIndex, currentSong, gameSongs]);
+ 
   // 踢出玩家
   const handleKick = async (playerId) => {
     if (!isHost || !roomId) return;
@@ -160,19 +165,23 @@ const OnlineGameScreen = ({
 
   // 播放控制：参考本地游戏的简单机制
   useEffect(() => {
-    if (!audioRef.current || !currentSong) {
+    // 优先使用currentSong，如果没有则从gameSongs中获取
+    const song = currentSong || gameSongs[songIndex];
+    
+    if (!audioRef.current || !song) {
       setLocalProgress(0);
+      console.log(`⚠️  [播放控制跳过] 歌曲不存在`);
       return;
     }
     
-    console.log(`🎮 [播放控制] isPlaying:${gameState.isPlaying}, 歌曲:${currentSong.title}, 索引:${songIndex}`);
+    console.log(`🎮 [播放控制] isPlaying:${gameState.isPlaying}, 歌曲:${song.title}, 索引:${songIndex}`);
     
     if (gameState.isPlaying) {
       // 开始播放
-      console.log(`▶️  [开始播放] ${currentSong.title}`);
+      console.log(`▶️  [开始播放] ${song.title}`);
       audioRef.current.play().catch(err => console.error('播放失败:', err));
       
-      const startTime = currentSong.segmentStart || 0;
+      const startTime = song.segmentStart || 0;
       
       // 本地监控播放进度和时长（像本地游戏一样）
       timerRef.current = setInterval(() => {
@@ -245,19 +254,25 @@ const OnlineGameScreen = ({
 
   // 歌曲切换时重置音频和进度
   useEffect(() => {
-    if (!currentSong || !audioRef.current) return;
+    // 优先使用currentSong，如果没有则从gameSongs中获取
+    const song = currentSong || gameSongs[songIndex];
     
-    console.log(`🎵 [歌曲切换] 索引:${songIndex}, 歌曲:${currentSong.title}`);
+    if (!song || !audioRef.current) {
+      console.log(`❌ [歌曲加载失败] currentSong:${currentSong?.title || 'null'}, gameSongs[${songIndex}]:${gameSongs[songIndex]?.title || 'null'}`);
+      return;
+    }
+    
+    console.log(`🎵 [歌曲切换] 索引:${songIndex}, 歌曲:${song.title}`);
     
     // 先暂停当前播放
     audioRef.current.pause();
     
     // 直接从本地加载音频文件
-    audioRef.current.src = currentSong.path;
+    audioRef.current.src = song.path;
     audioRef.current.load();
     
     // 使用预先确定的起始位置（从Firebase的gameState.segmentStart读取，所有玩家一致）
-    const startTime = currentSong.segmentStart || 0;
+    const startTime = song.segmentStart || 0;
     
     const setStartPosition = () => {
       if (audioRef.current) {
@@ -277,7 +292,7 @@ const OnlineGameScreen = ({
     
     // 重置当前题目答题状态
     setHasAnsweredCurrentQuestion(false);
-  }, [currentSong, songIndex]);
+  }, [currentSong, songIndex, gameSongs]);
 
 
   // 房主专用：倒计时监控
