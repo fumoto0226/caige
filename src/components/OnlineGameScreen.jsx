@@ -24,7 +24,7 @@ const OnlineGameScreen = ({
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showKickMenu, setShowKickMenu] = useState(null); // playerId to show kick menu for
   const [playersInResults, setPlayersInResults] = useState([]); // 正在查看结算的玩家ID列表
-  const [animationKey, setAnimationKey] = useState(0); // 用于重置CSS动画
+  const [localProgress, setLocalProgress] = useState(0); // 本地真实播放进度（秒）
   
   // 游戏状态 - 完全从Firebase同步
   const [gameState, setGameState] = useState({
@@ -145,9 +145,12 @@ const OnlineGameScreen = ({
     }
   }, [gameState.isPlaying, gameState.progress, currentSong]);
 
-  // 非房主玩家：本地监控播放时长，避免网络延迟导致超时
+  // 所有玩家：本地监控播放进度和时长
   useEffect(() => {
-    if (isHost || !gameState.isPlaying || !audioRef.current || !currentSong) return;
+    if (!gameState.isPlaying || !audioRef.current || !currentSong) {
+      setLocalProgress(0);
+      return;
+    }
     
     const startTime = currentSong.segmentStart || 0;
     
@@ -157,22 +160,31 @@ const OnlineGameScreen = ({
       const currentTime = audioRef.current.currentTime;
       const elapsed = currentTime - startTime;
       
-      // 本地检查：超过时长立即暂停（不更新Firebase）
+      // 更新本地进度显示
+      setLocalProgress(Math.min(elapsed, maxDuration));
+      
+      // 严格检查：超过时长立即暂停
       if (elapsed >= maxDuration) {
         audioRef.current.pause();
+        setLocalProgress(maxDuration);
         clearInterval(localTimer);
+        
+        // 如果是房主，触发完成逻辑
+        if (isHost) {
+          handlePlaybackFinish();
+        }
       }
     }, 100);
     
     return () => clearInterval(localTimer);
-  }, [isHost, gameState.isPlaying, currentSong, maxDuration]);
+  }, [gameState.isPlaying, currentSong, maxDuration, isHost]);
 
   // 自动滚动消息
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 歌曲切换时重置音频和动画
+  // 歌曲切换时重置音频和进度
   useEffect(() => {
     if (!currentSong || !audioRef.current) return;
     
@@ -185,11 +197,11 @@ const OnlineGameScreen = ({
       audioRef.current.currentTime = startTime;
     };
     
-    // 重置CSS动画
-    setAnimationKey(prev => prev + 1);
+    // 重置本地进度
+    setLocalProgress(0);
   }, [currentSong]);
 
-  // 房主专用：播放进度监控和同步
+  // 房主专用：同步进度到Firebase（不监控时长，时长由上面的统一监控处理）
   useEffect(() => {
     if (!isHost || !gameState.isPlaying || !audioRef.current) {
       if (timerRef.current) {
@@ -199,40 +211,18 @@ const OnlineGameScreen = ({
       return;
     }
     
-    let syncCounter = 0;
-    const startTime = currentSong.segmentStart || 0;
-    
+    // 每秒同步一次进度到Firebase
     timerRef.current = setInterval(() => {
       if (!audioRef.current) return;
       
       const currentTime = audioRef.current.currentTime;
-      const elapsed = currentTime - startTime;
       
-      // 每秒同步一次进度到Firebase
-      syncCounter++;
-      if (syncCounter >= 10) {
-        syncCounter = 0;
-        updateGameState(roomId, {
-          ...gameState,
-          progress: currentTime,
-          isPlaying: true
-        }).catch(err => console.error('同步进度失败:', err));
-      }
-      
-      // 检查是否播放完毕
-      if (elapsed >= maxDuration || audioRef.current.ended) {
-        // 立即暂停音频
-        if (audioRef.current) {
-          audioRef.current.pause();
-        }
-        // 清理timer
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-        handlePlaybackFinish();
-      }
-    }, 100);
+      updateGameState(roomId, {
+        ...gameState,
+        progress: currentTime,
+        isPlaying: true
+      }).catch(err => console.error('同步进度失败:', err));
+    }, 1000);
     
     return () => {
       if (timerRef.current) {
@@ -240,7 +230,7 @@ const OnlineGameScreen = ({
         timerRef.current = null;
       }
     };
-  }, [isHost, gameState.isPlaying, roomId, maxDuration, currentSong]);
+  }, [isHost, gameState.isPlaying, roomId]);
 
   // 房主专用：倒计时监控
   useEffect(() => {
@@ -616,17 +606,13 @@ const OnlineGameScreen = ({
         
         <div className="flex items-center gap-2 pt-3 relative">
            <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
-             {gameState.isPlaying ? '播放中' : '暂停'}
+             {Math.floor(localProgress)}s
            </span>
            <div className="flex-1 relative h-1.5 bg-slate-100 rounded-lg overflow-hidden">
                 <div 
-                  key={animationKey}
-                  className={`h-full bg-gradient-to-r from-purple-500 to-purple-600 ${
-                    gameState.isPlaying ? 'animate-progress' : ''
-                  }`}
+                  className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-100"
                   style={{ 
-                    '--duration': `${maxDuration}s`,
-                    animationPlayState: gameState.isPlaying ? 'running' : 'paused'
+                    width: `${Math.min((localProgress / maxDuration) * 100, 100)}%`
                   }}
                 />
            </div>
