@@ -308,6 +308,65 @@ const OnlineGameScreen = ({
     };
   }, [isHost, gameState.isCountingDown, gameState.countdown, roomId]);
 
+  // 房主：公布答案（需要在handlePlaybackFinish之前定义，避免循环依赖）
+  const handleRevealAnswer = useCallback(async () => {
+    if (!isHost) return;
+    
+    const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+    const isLastSong = songIndex + 1 >= totalSongs;
+    
+    // 发送答案公布消息
+    await sendMessage(roomId, {
+      id: `reveal-${Date.now()}`,
+      playerId: 'system',
+      playerName: 'System',
+      text: `🎵 答案揭晓：《${currentSong.title}》 - ${artist?.name}`,
+      type: 'reveal',
+      timestamp: Date.now()
+    });
+    
+    if (isLastSong) {
+      // 最后一题，标记游戏结束
+      await updateGameState(roomId, {
+        ...gameState,
+        active: false,
+        isCountingDown: false,
+        countdown: 0,
+        gameEnded: true, // 标记游戏结束
+      });
+      
+      setTimeout(async () => {
+        await sendMessage(roomId, {
+          id: `game-end-${Date.now()}`,
+          playerId: 'system',
+          playerName: 'System',
+          text: '🎊 游戏结束！点击下方按钮查看结算...',
+          type: 'system',
+          timestamp: Date.now()
+        });
+      }, 500);
+    } else {
+      // 不是最后一题，显示等待提示
+      await updateGameState(roomId, {
+        ...gameState,
+        active: false,
+        isCountingDown: false,
+        countdown: 0
+      });
+      
+      setTimeout(async () => {
+        await sendMessage(roomId, {
+          id: `wait-next-${Date.now()}`,
+          playerId: 'system',
+          playerName: 'System',
+          text: '⏸ 等待房主播放下一题...',
+          type: 'system',
+          timestamp: Date.now()
+        });
+      }, 500);
+    }
+  }, [isHost, currentSong, songIndex, totalSongs, roomId, gameState]);
+
   // 房主：播放完毕处理
   const handlePlaybackFinish = useCallback(async () => {
     if (!isHost) return;
@@ -330,7 +389,7 @@ const OnlineGameScreen = ({
         countdown: timeLimit
       });
     }
-  }, [isHost, settings, gameState, players, roomId]);
+  }, [isHost, settings, gameState, players, roomId, handleRevealAnswer]);
 
   // 房主：开始游戏/播放下一题
   const handleHostStart = async () => {
@@ -517,64 +576,6 @@ const OnlineGameScreen = ({
   };
 
   // 房主：提前公布答案
-  const handleRevealAnswer = useCallback(async () => {
-    if (!isHost) return;
-    
-    const artist = ARTISTS.find(a => a.id === currentSong.artistId);
-    const isLastSong = songIndex + 1 >= totalSongs;
-    
-    // 发送答案公布消息
-    await sendMessage(roomId, {
-      id: `reveal-${Date.now()}`,
-      playerId: 'system',
-      playerName: 'System',
-      text: `🎵 答案揭晓：《${currentSong.title}》 - ${artist?.name}`,
-      type: 'reveal',
-      timestamp: Date.now()
-    });
-    
-    if (isLastSong) {
-      // 最后一题，标记游戏结束
-      await updateGameState(roomId, {
-        ...gameState,
-        active: false,
-        isCountingDown: false,
-        countdown: 0,
-        gameEnded: true, // 标记游戏结束
-      });
-      
-      setTimeout(async () => {
-        await sendMessage(roomId, {
-          id: `game-end-${Date.now()}`,
-          playerId: 'system',
-          playerName: 'System',
-          text: '🎊 游戏结束！点击下方按钮查看结算...',
-          type: 'system',
-          timestamp: Date.now()
-        });
-      }, 500);
-    } else {
-      // 不是最后一题，显示等待提示
-      await updateGameState(roomId, {
-        ...gameState,
-        active: false,
-        isCountingDown: false,
-        countdown: 0
-      });
-      
-      setTimeout(async () => {
-        await sendMessage(roomId, {
-          id: `wait-next-${Date.now()}`,
-          playerId: 'system',
-          playerName: 'System',
-          text: '⏸ 等待房主播放下一题...',
-          type: 'system',
-          timestamp: Date.now()
-        });
-      }, 500);
-    }
-  }, [isHost, currentSong, songIndex, totalSongs, roomId, gameState]);
-
   if (!currentSong) return null;
 
   return (
