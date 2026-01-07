@@ -231,8 +231,12 @@ const App = () => {
           // 只在歌曲列表真正改变时更新，避免频繁触发音频重新加载
           if (roomData.songList && roomData.songList.length > 0) {
             setGameSongs(prev => {
-              // 检查是否真的改变了（比较第一首歌的ID）
-              if (!prev || prev.length === 0 || prev[0]?.id !== roomData.songList[0]?.id) {
+              // 检查是否真的改变了
+              const hasChanged = !prev || 
+                                prev.length !== roomData.songList.length ||
+                                (prev[0] && roomData.songList[0] && prev[0].id !== roomData.songList[0].id);
+              
+              if (hasChanged) {
                 return roomData.songList;
               }
               return prev;
@@ -283,8 +287,12 @@ const App = () => {
           // 只在歌曲列表真正改变时更新，避免频繁触发音频重新加载
           if (roomData.songList && roomData.songList.length > 0) {
             setGameSongs(prev => {
-              // 检查是否真的改变了（比较第一首歌的ID）
-              if (!prev || prev.length === 0 || prev[0]?.id !== roomData.songList[0]?.id) {
+              // 检查是否真的改变了
+              const hasChanged = !prev || 
+                                prev.length !== roomData.songList.length ||
+                                (prev[0] && roomData.songList[0] && prev[0].id !== roomData.songList[0].id);
+              
+              if (hasChanged) {
                 return roomData.songList;
               }
               return prev;

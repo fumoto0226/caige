@@ -396,8 +396,8 @@ const OnlineGameScreen = ({
       // 标记本地已答对
       setHasAnsweredCurrentQuestion(true);
       
-      // 所有人答对都得10分
-      const score = 10;
+      // 所有人答对都得1分
+      const score = 1;
       const currentPlayer = players.find(p => p.id === currentUserId);
       
       // 立即更新本地分数
@@ -440,28 +440,28 @@ const OnlineGameScreen = ({
         setTimeout(async () => {
           const artistInfo = ARTISTS.find(a => a.id === currentSong.artistId);
           
-          // 系统消息：XX答对了！（+X分）- 不显示答案
+          // 系统消息：XX答对了！- 不显示答案和分数
           await sendMessage(roomId, {
             id: Date.now().toString(),
             playerId: 'system',
             playerName: 'System',
-            text: `🎉 ${currentPlayer?.name} 答对了！（+${score}分）`,
+            text: `🎉 ${currentPlayer?.name} 答对了！`,
             type: 'correct',
             timestamp: Date.now()
           });
           
-          // 本地消息：给自己显示完整答案
+          // 本地消息：给自己显示完整答案（不显示分数）
           setMessages(prev => [...prev, {
             id: `local-${Date.now()}`,
             playerId: 'system',
             playerName: 'System',
-            text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artistInfo?.name}（+${score}分）`,
+            text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artistInfo?.name}`,
             type: 'correct',
             timestamp: Date.now(),
             isLocal: true
           }]);
           
-          // 检查是否所有人都答对了（使用事务返回的最新玩家数量）
+          // 检查是否所有人都答对了（使用最新玩家数量）
           if (isHost && newCorrectPlayers.length >= totalPlayers) {
             // 所有人都答对了，1秒后自动公布答案进入下一题
             setTimeout(() => {
