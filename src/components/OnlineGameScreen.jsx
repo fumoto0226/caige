@@ -166,6 +166,7 @@ const OnlineGameScreen = ({
     
     if (gameState.isPlaying) {
       // 开始播放
+      console.log('开始播放:', currentSong.title, '索引:', songIndex);
       audioRef.current.play().catch(err => console.error('播放失败:', err));
       
       const startTime = currentSong.segmentStart || 0;
@@ -205,6 +206,7 @@ const OnlineGameScreen = ({
       };
     } else {
       // 暂停播放
+      console.log('暂停播放');
       audioRef.current.pause();
       setLocalProgress(0);
       
@@ -214,7 +216,7 @@ const OnlineGameScreen = ({
         timerRef.current = null;
       }
     }
-  }, [gameState.isPlaying, currentSong, maxDuration, isHost, roomId, gameState, players, settings]);
+  }, [gameState.isPlaying, currentSong, songIndex, maxDuration, isHost, handlePlaybackFinish]);
 
   // 监听题目变化，重置本地答题标记
   useEffect(() => {
@@ -307,7 +309,7 @@ const OnlineGameScreen = ({
   }, [isHost, gameState.isCountingDown, gameState.countdown, roomId]);
 
   // 房主：播放完毕处理
-  const handlePlaybackFinish = async () => {
+  const handlePlaybackFinish = useCallback(async () => {
     if (!isHost) return;
     
     const timeLimit = settings.timeLimit > 0 ? settings.timeLimit : 0;
@@ -328,7 +330,7 @@ const OnlineGameScreen = ({
         countdown: timeLimit
       });
     }
-  };
+  }, [isHost, settings, gameState, players, roomId]);
 
   // 房主：开始游戏/播放下一题
   const handleHostStart = async () => {
@@ -515,7 +517,7 @@ const OnlineGameScreen = ({
   };
 
   // 房主：提前公布答案
-  const handleRevealAnswer = async () => {
+  const handleRevealAnswer = useCallback(async () => {
     if (!isHost) return;
     
     const artist = ARTISTS.find(a => a.id === currentSong.artistId);
@@ -571,7 +573,7 @@ const OnlineGameScreen = ({
         });
       }, 500);
     }
-  };
+  }, [isHost, currentSong, songIndex, totalSongs, roomId, gameState]);
 
   if (!currentSong) return null;
 
