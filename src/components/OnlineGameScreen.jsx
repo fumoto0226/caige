@@ -51,8 +51,8 @@ const OnlineGameScreen = ({
 
   // 调试：监控props变化
   useEffect(() => {
-    console.log(`🎯 [Props变化] songIndex:${songIndex}, currentSong:${currentSong?.title || 'null'}, gameSongs长度:${gameSongs?.length || 0}`);
-  }, [songIndex, currentSong, gameSongs]);
+    console.log(`🎯 [Props变化] songIndex:${songIndex}, currentSong:${currentSong?.title || 'null'}, gameSongs长度:${gameSongs?.length || 0}, gameState.currentIndex:${gameState.currentIndex}`);
+  }, [songIndex, currentSong, gameSongs, gameState.currentIndex]);
  
   // 踢出玩家
   const handleKick = async (playerId) => {
@@ -165,16 +165,17 @@ const OnlineGameScreen = ({
 
   // 播放控制：参考本地游戏的简单机制
   useEffect(() => {
-    // 优先使用currentSong，如果没有则从gameSongs中获取
-    const song = currentSong || gameSongs[songIndex];
+    // 关键修复：使用 gameState.currentIndex 作为真实索引
+    const actualIndex = gameState.currentIndex !== undefined ? gameState.currentIndex : songIndex;
+    const song = gameSongs[actualIndex];
     
     if (!audioRef.current || !song) {
       setLocalProgress(0);
-      console.log(`⚠️  [播放控制跳过] 歌曲不存在`);
+      console.log(`⚠️  [播放控制跳过] actualIndex:${actualIndex}, song:${song?.title || 'null'}`);
       return;
     }
     
-    console.log(`🎮 [播放控制] isPlaying:${gameState.isPlaying}, 歌曲:${song.title}, 索引:${songIndex}`);
+    console.log(`🎮 [播放控制] isPlaying:${gameState.isPlaying}, 歌曲:${song.title}, actualIndex:${actualIndex}`);
     
     if (gameState.isPlaying) {
       // 开始播放
@@ -254,15 +255,16 @@ const OnlineGameScreen = ({
 
   // 歌曲切换时重置音频和进度
   useEffect(() => {
-    // 优先使用currentSong，如果没有则从gameSongs中获取
-    const song = currentSong || gameSongs[songIndex];
+    // 关键修复：使用 gameState.currentIndex 作为真实索引，而不是props的songIndex
+    const actualIndex = gameState.currentIndex !== undefined ? gameState.currentIndex : songIndex;
+    const song = gameSongs[actualIndex];
     
     if (!song || !audioRef.current) {
-      console.log(`❌ [歌曲加载失败] currentSong:${currentSong?.title || 'null'}, gameSongs[${songIndex}]:${gameSongs[songIndex]?.title || 'null'}`);
+      console.log(`❌ [歌曲加载失败] actualIndex:${actualIndex}, gameSongs长度:${gameSongs?.length || 0}, song:${song?.title || 'null'}`);
       return;
     }
     
-    console.log(`🎵 [歌曲切换] 索引:${songIndex}, 歌曲:${song.title}`);
+    console.log(`🎵 [歌曲切换] actualIndex:${actualIndex}, songIndex:${songIndex}, 歌曲:${song.title}`);
     
     // 先暂停当前播放
     audioRef.current.pause();
@@ -292,7 +294,7 @@ const OnlineGameScreen = ({
     
     // 重置当前题目答题状态
     setHasAnsweredCurrentQuestion(false);
-  }, [currentSong, songIndex, gameSongs]);
+  }, [gameState.currentIndex, songIndex, gameSongs]);
 
 
   // 房主专用：倒计时监控
@@ -406,10 +408,15 @@ const OnlineGameScreen = ({
     e.preventDefault();
     if (!inputVal.trim() || !roomId) return;
 
+    // 使用正确的歌曲索引
+    const actualIndex = gameState.currentIndex !== undefined ? gameState.currentIndex : songIndex;
+    const song = gameSongs[actualIndex];
+    if (!song) return;
+
     const inputText = inputVal.trim();
-    const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+    const artist = ARTISTS.find(a => a.id === song.artistId);
     const isCorrect = gameState.active && 
-      (inputText.toLowerCase() === currentSong.title.toLowerCase() ||
+      (inputText.toLowerCase() === song.title.toLowerCase() ||
        inputText === artist?.name);
 
     // 检查是否已经答对过
@@ -425,7 +432,7 @@ const OnlineGameScreen = ({
     let displayText = inputText;
     if (gameState.active) {
       // 屏蔽歌曲名
-      const titleRegex = new RegExp(currentSong.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      const titleRegex = new RegExp(song.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
       displayText = displayText.replace(titleRegex, '<正确答案>');
       
       // 屏蔽歌手名
@@ -499,7 +506,7 @@ const OnlineGameScreen = ({
         
         // 延迟发送系统消息
         setTimeout(async () => {
-          const artistInfo = ARTISTS.find(a => a.id === currentSong.artistId);
+          const artistInfo = ARTISTS.find(a => a.id === song.artistId);
           
           // 系统消息：XX答对了！- 不显示答案和分数
           await sendMessage(roomId, {
@@ -516,7 +523,7 @@ const OnlineGameScreen = ({
             id: `local-${Date.now()}`,
             playerId: 'system',
             playerName: 'System',
-            text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${currentSong.title}》 - ${artistInfo?.name}`,
+            text: `🎉 ${currentPlayer?.name} 答对了！正确答案：《${song.title}》 - ${artistInfo?.name}`,
             type: 'correct',
             timestamp: Date.now(),
             isLocal: true
@@ -544,7 +551,12 @@ const OnlineGameScreen = ({
   const handleRevealAnswer = async () => {
     if (!isHost) return;
     
-    const artist = ARTISTS.find(a => a.id === currentSong.artistId);
+    // 使用正确的歌曲索引
+    const actualIndex = gameState.currentIndex !== undefined ? gameState.currentIndex : songIndex;
+    const song = gameSongs[actualIndex];
+    if (!song) return;
+    
+    const artist = ARTISTS.find(a => a.id === song.artistId);
     const isLastSong = songIndex + 1 >= totalSongs;
     
     // 发送答案公布消息
@@ -552,7 +564,7 @@ const OnlineGameScreen = ({
       id: `reveal-${Date.now()}`,
       playerId: 'system',
       playerName: 'System',
-      text: `🎵 答案揭晓：《${currentSong.title}》 - ${artist?.name}`,
+      text: `🎵 答案揭晓：《${song.title}》 - ${artist?.name}`,
       type: 'reveal',
       timestamp: Date.now()
     });
@@ -599,7 +611,11 @@ const OnlineGameScreen = ({
     }
   };
 
-  if (!currentSong) return null;
+  // 使用正确的歌曲索引获取当前歌曲
+  const actualIndex = gameState.currentIndex !== undefined ? gameState.currentIndex : songIndex;
+  const actualCurrentSong = gameSongs[actualIndex] || currentSong;
+  
+  if (!actualCurrentSong) return null;
 
   return (
     <div className="flex flex-col h-full bg-slate-50 font-sans overflow-hidden">
