@@ -26,6 +26,7 @@ const OnlineGameScreen = ({
   const [playersInResults, setPlayersInResults] = useState([]); // 正在查看结算的玩家ID列表
   const [localProgress, setLocalProgress] = useState(0); // 本地真实播放进度（秒）
   const [hasAnsweredCurrentQuestion, setHasAnsweredCurrentQuestion] = useState(false); // 本地标记：当前题目是否已答对
+  const [preloadedAudios, setPreloadedAudios] = useState({}); // 预加载的音频对象
   
   // 游戏状态 - 完全从Firebase同步
   const [gameState, setGameState] = useState({
@@ -223,12 +224,53 @@ const OnlineGameScreen = ({
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showKickButton]);
 
+  // 预加载所有歌曲，避免网络慢导致播放时加载失败
+  useEffect(() => {
+    if (!gameSongs || gameSongs.length === 0) return;
+    
+    const preload = async () => {
+      const audioCache = {};
+      
+      gameSongs.forEach((song) => {
+        const audio = new Audio();
+        audio.preload = 'auto';
+        audio.src = song.path;
+        audioCache[song.id] = audio;
+        
+        // 开始加载
+        audio.load();
+      });
+      
+      setPreloadedAudios(audioCache);
+    };
+    
+    preload();
+    
+    // 清理函数
+    return () => {
+      Object.values(preloadedAudios).forEach(audio => {
+        audio.pause();
+        audio.src = '';
+      });
+    };
+  }, [gameSongs]);
+
   // 歌曲切换时重置音频和进度
   useEffect(() => {
     if (!currentSong || !audioRef.current) return;
     
-    audioRef.current.src = currentSong.path;
-    audioRef.current.load();
+    // 优先使用预加载的音频，如果没有则正常加载
+    const preloadedAudio = preloadedAudios[currentSong.id];
+    
+    if (preloadedAudio && preloadedAudio.readyState >= 2) {
+      // 使用预加载的音频
+      audioRef.current.src = preloadedAudio.src;
+      audioRef.current.load();
+    } else {
+      // 正常加载
+      audioRef.current.src = currentSong.path;
+      audioRef.current.load();
+    }
     
     // 使用预先确定的起始位置（从Firebase的gameState.segmentStart读取，所有玩家一致）
     const startTime = currentSong.segmentStart || 0;
@@ -594,8 +636,9 @@ const OnlineGameScreen = ({
                       ? 'ring-2 ring-green-400 shadow-lg shadow-green-200' 
                       : 'shadow-md'
                   } ${isHost && !isMe ? 'cursor-pointer' : ''}`}
-                  onClick={() => {
+                  onClick={(e) => {
                     if (isHost && !isMe) {
+                      e.stopPropagation(); // 阻止事件冒泡
                       setShowKickButton(showKickButton === p.id ? null : p.id);
                     }
                   }}
