@@ -325,7 +325,7 @@ const LocalGameScreen = ({
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-start pt-6 pb-2 px-4 w-full gap-6">
+      <div className="flex-1 flex flex-col items-center justify-start pt-2 pb-2 px-4 w-full gap-6">
         <div className={`relative w-52 h-52 sm:w-64 sm:h-64 rounded-full border-4 border-white shadow-2xl flex items-center justify-center overflow-hidden transition-all duration-700 shrink-0 ${isPlaying ? 'animate-spin-slow' : ''}`}>
            <div className="absolute inset-0 bg-slate-800"></div>
            <div className="absolute inset-2 border border-slate-700 rounded-full opacity-30"></div>

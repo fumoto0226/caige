@@ -86,6 +86,27 @@ const App = () => {
   const [pendingRoomAction, setPendingRoomAction] = useState(null); // { type: 'create' | 'join', roomId?: string }
   const [savedUsername, setSavedUsername] = useState(() => getPersistentUsername());
 
+  // 管理浏览器历史记录：进入游戏/房间时添加历史记录，返回键返回首页
+  useEffect(() => {
+    if (screen === 'game' || screen === 'results') {
+      // 进入游戏或结果页面时，添加一个历史记录
+      window.history.pushState({ page: screen }, '', window.location.href);
+      
+      // 监听返回键
+      const handlePopState = (e) => {
+        e.preventDefault();
+        // 返回首页
+        handleHome();
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [screen]);
+
   // 检查 URL 参数中是否有房间号，或自动重新加入当前房间
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

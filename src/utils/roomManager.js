@@ -135,7 +135,9 @@ export const joinRoom = async (roomId, player) => {
 };
 
 // 离开房间
-export const leaveRoom = async (roomId, playerId) => {
+export const leaveRoom = async (roomId, playerId, options = {}) => {
+  const { silent = false } = options; // silent: 是否静默退出（不显示退出消息）
+  
   const roomRef = doc(db, 'rooms', roomId);
   const roomSnap = await getDoc(roomRef);
   
@@ -166,7 +168,8 @@ export const leaveRoom = async (roomId, playerId) => {
     updatedAt: serverTimestamp()
   });
   
-  if (player) {
+  // 如果不是静默模式，显示退出消息
+  if (player && !silent) {
     await addSystemMessage(roomId, `👋 ${player.name} 离开了房间`);
   }
 };
@@ -309,7 +312,9 @@ export const kickPlayer = async (roomId, playerId, kickerName) => {
   const kickedPlayer = roomData.players.find(p => p.id === playerId);
   const kickedPlayerName = kickedPlayer?.name || '玩家';
   
-  await leaveRoom(roomId, playerId);
+  // 静默退出，不显示"离开了房间"的消息
+  await leaveRoom(roomId, playerId, { silent: true });
+  // 只显示"被踢出"的消息
   await addSystemMessage(roomId, `🚫 ${kickedPlayerName} 被踢出了房间`);
 };
 
