@@ -163,38 +163,87 @@ const OnlineGameScreen = ({
     };
   }, [roomId, currentUserId]);
 
-  // 播放控制：参考本地游戏的简单机制
+  // 整合：歌曲切换 + 播放控制
   useEffect(() => {
-    // 关键修复：使用 gameState.currentIndex 作为真实索引
+    // 使用 gameState.currentIndex 作为真实索引
     const actualIndex = gameState.currentIndex !== undefined ? gameState.currentIndex : songIndex;
     const song = gameSongs[actualIndex];
     
     if (!audioRef.current || !song) {
       setLocalProgress(0);
-      console.log(`⚠️  [播放控制跳过] actualIndex:${actualIndex}, song:${song?.title || 'null'}`);
+      console.log(`⚠️  [跳过] actualIndex:${actualIndex}, song:${song?.title || 'null'}, audioRef:${!!audioRef.current}`);
       return;
     }
     
-    console.log(`🎮 [播放控制] isPlaying:${gameState.isPlaying}, 歌曲:${song.title}, actualIndex:${actualIndex}`);
+    console.log(`🔄 [音频+播放控制] actualIndex:${actualIndex}, 歌曲:${song.title}, isPlaying:${gameState.isPlaying}`);
     
+    // 1. 先加载音频
+    const currentSrc = audioRef.current.src;
+    const needsReload = !currentSrc || !currentSrc.includes(song.path);
+    
+    if (needsReload) {
+      console.log(`🎵 [加载新歌] ${song.title}`);
+      audioRef.current.pause();
+      audioRef.current.src = song.path;
+      audioRef.current.load();
+      
+      const startTime = song.segmentStart || 0;
+      const setStartPosition = () => {
+        if (audioRef.current) {
+          audioRef.current.currentTime = startTime;
+          console.log(`⏱️  [音频就绪] 起始:${startTime}s`);
+        }
+      };
+      
+      audioRef.current.onloadedmetadata = setStartPosition;
+      if (audioRef.current.readyState >= 2) {
+        setStartPosition();
+      }
+      
+      setLocalProgress(0);
+      setHasAnsweredCurrentQuestion(false);
+    }
+    
+    // 2. 根据isPlaying状态控制播放
     if (gameState.isPlaying) {
-      // 开始播放
       console.log(`▶️  [开始播放] ${song.title}`);
-      audioRef.current.play().catch(err => console.error('播放失败:', err));
+      
+      // 等待音频加载完成后播放
+      const tryPlay = () => {
+        if (audioRef.current && audioRef.current.readyState >= 2) {
+          audioRef.current.play().catch(err => {
+            console.error('播放失败:', err);
+            // 如果立即播放失败，等待一下再试
+            setTimeout(() => {
+              if (audioRef.current && gameState.isPlaying) {
+                audioRef.current.play().catch(e => console.error('重试播放失败:', e));
+              }
+            }, 100);
+          });
+        } else {
+          // 音频还没准备好，等待
+          console.log(`⏳ [等待音频加载] readyState:${audioRef.current?.readyState}`);
+          audioRef.current.oncanplay = () => {
+            if (gameState.isPlaying) {
+              audioRef.current.play().catch(err => console.error('延迟播放失败:', err));
+            }
+          };
+        }
+      };
+      
+      tryPlay();
       
       const startTime = song.segmentStart || 0;
       
-      // 本地监控播放进度和时长（像本地游戏一样）
+      // 本地监控播放进度和时长
       timerRef.current = setInterval(() => {
         if (!audioRef.current) return;
         
         const currentTime = audioRef.current.currentTime;
         const elapsed = currentTime - startTime;
         
-        // 更新本地进度显示
         setLocalProgress(Math.min(elapsed, maxDuration));
         
-        // 严格检查：超过时长立即暂停
         if (elapsed >= maxDuration || audioRef.current.ended) {
           audioRef.current.pause();
           setLocalProgress(maxDuration);
@@ -204,7 +253,6 @@ const OnlineGameScreen = ({
             timerRef.current = null;
           }
           
-          // 如果是房主，触发完成逻辑
           if (isHost) {
             handlePlaybackFinish();
           }
@@ -219,17 +267,16 @@ const OnlineGameScreen = ({
       };
     } else {
       // 暂停播放
-      console.log(`⏸️  [暂停播放]`);
+      console.log(`⏸️  [暂停]`);
       audioRef.current.pause();
       setLocalProgress(0);
       
-      // 清理计时器
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
     }
-  }, [gameState.isPlaying, gameState.currentIndex, gameSongs, maxDuration, isHost, roomId, players, settings]);
+  }, [gameState.isPlaying, gameState.currentIndex, gameSongs, maxDuration, isHost, songIndex]);
 
   // 监听题目变化，重置本地答题标记
   useEffect(() => {
@@ -252,50 +299,6 @@ const OnlineGameScreen = ({
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showKickButton]);
-
-  // 歌曲切换时重置音频和进度
-  useEffect(() => {
-    // 关键修复：使用 gameState.currentIndex 作为真实索引，而不是props的songIndex
-    const actualIndex = gameState.currentIndex !== undefined ? gameState.currentIndex : songIndex;
-    const song = gameSongs[actualIndex];
-    
-    if (!song || !audioRef.current) {
-      console.log(`❌ [歌曲加载失败] actualIndex:${actualIndex}, gameSongs长度:${gameSongs?.length || 0}, song:${song?.title || 'null'}`);
-      return;
-    }
-    
-    console.log(`🎵 [歌曲切换] actualIndex:${actualIndex}, songIndex:${songIndex}, 歌曲:${song.title}`);
-    
-    // 先暂停当前播放
-    audioRef.current.pause();
-    
-    // 直接从本地加载音频文件
-    audioRef.current.src = song.path;
-    audioRef.current.load();
-    
-    // 使用预先确定的起始位置（从Firebase的gameState.segmentStart读取，所有玩家一致）
-    const startTime = song.segmentStart || 0;
-    
-    const setStartPosition = () => {
-      if (audioRef.current) {
-        audioRef.current.currentTime = startTime;
-        console.log(`⏱️  [音频就绪] 起始位置:${startTime}s`);
-      }
-    };
-    
-    audioRef.current.onloadedmetadata = setStartPosition;
-    // 备用：如果已经加载完成
-    if (audioRef.current.readyState >= 2) {
-      setStartPosition();
-    }
-    
-    // 重置本地进度
-    setLocalProgress(0);
-    
-    // 重置当前题目答题状态
-    setHasAnsweredCurrentQuestion(false);
-  }, [gameState.currentIndex, songIndex, gameSongs]);
-
 
   // 房主专用：倒计时监控
   useEffect(() => {
