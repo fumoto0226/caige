@@ -228,8 +228,15 @@ const App = () => {
           setPlayers(roomData.players);
           
           // 同步歌曲列表（重要：再来一局时会更新songList）
-          if (roomData.songList) {
-            setGameSongs(roomData.songList);
+          // 只在歌曲列表真正改变时更新，避免频繁触发音频重新加载
+          if (roomData.songList && roomData.songList.length > 0) {
+            setGameSongs(prev => {
+              // 检查是否真的改变了（比较第一首歌的ID）
+              if (!prev || prev.length === 0 || prev[0]?.id !== roomData.songList[0]?.id) {
+                return roomData.songList;
+              }
+              return prev;
+            });
           }
           
           // 同步当前题目索引（重要：切换题目时同步）
@@ -273,8 +280,15 @@ const App = () => {
           setPlayers(roomData.players);
           
           // 同步歌曲列表（重要：再来一局时会更新songList）
-          if (roomData.songList) {
-            setGameSongs(roomData.songList);
+          // 只在歌曲列表真正改变时更新，避免频繁触发音频重新加载
+          if (roomData.songList && roomData.songList.length > 0) {
+            setGameSongs(prev => {
+              // 检查是否真的改变了（比较第一首歌的ID）
+              if (!prev || prev.length === 0 || prev[0]?.id !== roomData.songList[0]?.id) {
+                return roomData.songList;
+              }
+              return prev;
+            });
           }
           
           // 同步当前题目索引（重要：切换题目时同步）
