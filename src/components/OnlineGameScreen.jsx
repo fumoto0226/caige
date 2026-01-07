@@ -130,6 +130,28 @@ const OnlineGameScreen = ({
     return () => unsubscribe();
   }, [roomId]);
 
+  // 监听浏览器关闭/刷新事件，自动退出房间
+  useEffect(() => {
+    if (!roomId || !currentUserId) return;
+    
+    const handleBeforeUnload = async (e) => {
+      // 离开房间
+      try {
+        const { leaveRoom } = await import('../utils/roomManager');
+        await leaveRoom(roomId, currentUserId);
+      } catch (err) {
+        console.error('离开房间失败:', err);
+      }
+    };
+    
+    // 监听页面关闭/刷新
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [roomId, currentUserId]);
+
   // 播放控制：参考本地游戏的简单机制
   useEffect(() => {
     if (!audioRef.current || !currentSong) {
@@ -356,6 +378,11 @@ const OnlineGameScreen = ({
     setInputVal('');
 
     if (isCorrect && gameState.active) {
+      // 检查是否已经答对过（避免重复加分）
+      if ((gameState.correctPlayers || []).includes(currentUserId)) {
+        return; // 已经答对过，不再处理
+      }
+      
       // 立即更新本地分数
       const currentPlayer = players.find(p => p.id === currentUserId);
       
@@ -365,27 +392,32 @@ const OnlineGameScreen = ({
       if (rank === 1) score = 10;
       else if (rank === 2) score = 8;
       
-      // 立即更新本地玩家分数
-      setPlayers(prev => prev.map(p => 
-        p.id === currentUserId ? { ...p, score: p.score + score } : p
-      ));
-      
       // 更新Firebase中的答对列表和玩家分数
       const newCorrectPlayers = [...(gameState.correctPlayers || []), currentUserId];
-      const updatedPlayers = players.map(p => 
-        p.id === currentUserId ? { ...p, score: p.score + score } : p
-      );
       
       // 同时更新gameState和players
-      const { updateDoc, doc: firestoreDoc } = await import('firebase/firestore');
+      const { updateDoc, doc: firestoreDoc, getDoc } = await import('firebase/firestore');
       const { db } = await import('../firebase');
       const roomRef = firestoreDoc(db, 'rooms', roomId);
+      
+      // 先获取最新的房间数据
+      const roomSnap = await getDoc(roomRef);
+      const latestRoomData = roomSnap.data();
+      const latestPlayers = latestRoomData.players || [];
+      
+      // 基于最新数据更新分数
+      const updatedPlayers = latestPlayers.map(p => 
+        p.id === currentUserId ? { ...p, score: (p.score || 0) + score } : p
+      );
       
       await updateDoc(roomRef, {
         'gameState.correctPlayers': newCorrectPlayers,
         players: updatedPlayers,
         updatedAt: Date.now()
       });
+      
+      // 立即更新本地玩家分数
+      setPlayers(updatedPlayers);
       
       // 延迟发送系统消息
       setTimeout(async () => {
@@ -412,8 +444,8 @@ const OnlineGameScreen = ({
           isLocal: true
         }]);
         
-        // 检查是否所有人都答对了
-        if (isHost && newCorrectPlayers.length >= players.length) {
+        // 检查是否所有人都答对了（使用最新的玩家数量）
+        if (isHost && newCorrectPlayers.length >= latestPlayers.length) {
           // 所有人都答对了，1秒后自动公布答案进入下一题
           setTimeout(() => {
             handleRevealAnswer();
