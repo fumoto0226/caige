@@ -25,6 +25,7 @@ const OnlineGameScreen = ({
   const [showKickMenu, setShowKickMenu] = useState(null); // playerId to show kick menu for
   const [playersInResults, setPlayersInResults] = useState([]); // 正在查看结算的玩家ID列表
   const [localProgress, setLocalProgress] = useState(0); // 本地真实播放进度（秒）
+  const [hasAnsweredCurrentQuestion, setHasAnsweredCurrentQuestion] = useState(false); // 本地标记：当前题目是否已答对
   
   // 游戏状态 - 完全从Firebase同步
   const [gameState, setGameState] = useState({
@@ -196,6 +197,11 @@ const OnlineGameScreen = ({
     }
   }, [gameState.isPlaying, currentSong, maxDuration, isHost]);
 
+  // 监听题目变化，重置本地答题标记
+  useEffect(() => {
+    setHasAnsweredCurrentQuestion(false);
+  }, [songIndex, currentSong]);
+
   // 自动滚动消息
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -293,6 +299,9 @@ const OnlineGameScreen = ({
   const handleHostStart = async () => {
     if (!isHost) return;
     
+    // 重置本地答题标记（新题目开始）
+    setHasAnsweredCurrentQuestion(false);
+    
     // 判断是否是第一次开始游戏（从未播放过）
     const isFirstTime = songIndex === 0 && !gameState.hasFinishedFirstPlay;
     
@@ -378,70 +387,54 @@ const OnlineGameScreen = ({
     setInputVal('');
 
     if (isCorrect && gameState.active) {
-      // 使用事务确保原子性操作，避免重复加分
-      const { runTransaction, doc: firestoreDoc } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-      const roomRef = firestoreDoc(db, 'rooms', roomId);
+      // 本地检查：如果当前题目已经答对过，直接返回
+      if (hasAnsweredCurrentQuestion) {
+        console.log('本地检测：当前题目已答对，不能重复得分');
+        return;
+      }
       
+      // 标记本地已答对
+      setHasAnsweredCurrentQuestion(true);
+      
+      // 所有人答对都得10分
+      const score = 10;
+      const currentPlayer = players.find(p => p.id === currentUserId);
+      
+      // 立即更新本地分数
+      const updatedPlayers = players.map(p => 
+        p.id === currentUserId ? { ...p, score: (p.score || 0) + score } : p
+      );
+      setPlayers(updatedPlayers);
+      
+      // 同步到Firebase
       try {
-        const result = await runTransaction(db, async (transaction) => {
-          const roomDoc = await transaction.get(roomRef);
-          
-          if (!roomDoc.exists()) {
-            throw new Error('房间不存在');
-          }
-          
-          const roomData = roomDoc.data();
-          const currentGameState = roomData.gameState || {};
-          const currentCorrectPlayers = currentGameState.correctPlayers || [];
-          const currentPlayers = roomData.players || [];
-          
-          // 在事务中检查是否已经答对过
-          if (currentCorrectPlayers.includes(currentUserId)) {
-            return { alreadyAnswered: true }; // 已经答对过
-          }
-          
-          // 计算得分：第一个10分，第二个8分，第三个及以后6分
-          const rank = currentCorrectPlayers.length + 1;
-          let score = 6;
-          if (rank === 1) score = 10;
-          else if (rank === 2) score = 8;
-          
-          // 更新答对列表
-          const newCorrectPlayers = [...currentCorrectPlayers, currentUserId];
-          
-          // 更新玩家分数
-          const updatedPlayers = currentPlayers.map(p => 
-            p.id === currentUserId ? { ...p, score: (p.score || 0) + score } : p
-          );
-          
-          // 在事务中更新
-          transaction.update(roomRef, {
-            'gameState.correctPlayers': newCorrectPlayers,
-            players: updatedPlayers,
-            updatedAt: Date.now()
-          });
-          
-          return { 
-            alreadyAnswered: false, 
-            score, 
-            rank,
-            updatedPlayers,
-            newCorrectPlayers,
-            totalPlayers: currentPlayers.length
-          };
+        const { updateDoc, doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+        const { db } = await import('../firebase');
+        const roomRef = firestoreDoc(db, 'rooms', roomId);
+        
+        // 获取最新数据
+        const roomSnap = await getDoc(roomRef);
+        const roomData = roomSnap.data();
+        const currentCorrectPlayers = roomData.gameState?.correctPlayers || [];
+        const latestPlayers = roomData.players || [];
+        
+        // 更新答对列表（如果还没有的话）
+        const newCorrectPlayers = currentCorrectPlayers.includes(currentUserId) 
+          ? currentCorrectPlayers 
+          : [...currentCorrectPlayers, currentUserId];
+        
+        // 更新玩家分数（基于最新数据）
+        const syncedPlayers = latestPlayers.map(p => 
+          p.id === currentUserId ? { ...p, score: (p.score || 0) + score } : p
+        );
+        
+        await updateDoc(roomRef, {
+          'gameState.correctPlayers': newCorrectPlayers,
+          players: syncedPlayers,
+          updatedAt: Date.now()
         });
         
-        // 如果已经答对过，直接返回
-        if (result.alreadyAnswered) {
-          return;
-        }
-        
-        // 立即更新本地玩家分数
-        setPlayers(result.updatedPlayers);
-        
-        const { score, newCorrectPlayers, totalPlayers } = result;
-        const currentPlayer = players.find(p => p.id === currentUserId);
+        const totalPlayers = latestPlayers.length;
         
         // 延迟发送系统消息
         setTimeout(async () => {
