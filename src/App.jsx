@@ -226,6 +226,16 @@ const App = () => {
           }
           
           setPlayers(roomData.players);
+          
+          // 同步歌曲列表（重要：再来一局时会更新songList）
+          if (roomData.songList) {
+            setGameSongs(roomData.songList);
+          }
+          
+          // 同步当前题目索引（重要：切换题目时同步）
+          if (roomData.gameState) {
+            setCurrentSongIndex(roomData.gameState.currentIndex || 0);
+          }
         });
         setRoomUnsubscribe(() => unsubscribe);
         
@@ -261,7 +271,13 @@ const App = () => {
           }
           
           setPlayers(roomData.players);
-          // 同步游戏状态
+          
+          // 同步歌曲列表（重要：再来一局时会更新songList）
+          if (roomData.songList) {
+            setGameSongs(roomData.songList);
+          }
+          
+          // 同步当前题目索引（重要：切换题目时同步）
           if (roomData.gameState) {
             setCurrentSongIndex(roomData.gameState.currentIndex || 0);
           }
