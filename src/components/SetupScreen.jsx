@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ARTISTS, getAllSongs } from '../data/songs';
-import { Settings, Users, Music, Clock, Play, Zap, LogIn, X } from 'lucide-react';
+import { Settings, Users, Music, Clock, Play, Zap, LogIn, X, Clipboard } from 'lucide-react';
 
 const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, PlaybackPosition }) => {
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -292,19 +292,36 @@ const SetupScreen = ({ settings, setSettings, onStart, onJoin, GameMode, Playbac
               <p className="text-slate-500 mt-1">请输入好友分享的房间号</p>
             </div>
 
-            <input
-              type="text"
-              value={roomId}
-              onChange={(e) => setRoomId(e.target.value)}
-              placeholder="例如: 8821"
-              maxLength={6}
-              className="w-full bg-slate-100 text-center text-3xl font-black tracking-widest py-4 rounded-2xl mb-4 focus:outline-none focus:ring-4 focus:ring-yellow-200 text-slate-800 placeholder-slate-300"
-              autoFocus
-            />
+            <div className="relative mb-4">
+              <input
+                type="text"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                placeholder="例如: 8821"
+                maxLength={6}
+                className="w-full bg-slate-100 text-center text-3xl font-black tracking-widest py-4 pr-14 rounded-2xl focus:outline-none focus:ring-4 focus:ring-yellow-200 text-slate-800 placeholder-slate-300"
+                autoFocus
+              />
+              <button
+                onClick={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText();
+                    setRoomId(text.trim());
+                  } catch (err) {
+                    console.error('粘贴失败:', err);
+                    alert('粘贴失败，请手动输入房间号');
+                  }
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-600 rounded-lg transition active:scale-95"
+                title="粘贴房间号"
+              >
+                <Clipboard size={20} />
+              </button>
+            </div>
 
             <button
               onClick={handleJoinSubmit}
-              className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-4 rounded-2xl shadow-lg transition-transform active:scale-95"
+              className="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-4 rounded-2xl shadow-lg transition-transform active:scale-95 mt-2"
             >
               进入房间 🚀
             </button>

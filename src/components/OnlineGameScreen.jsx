@@ -22,6 +22,7 @@ const OnlineGameScreen = ({
   // 本地UI状态 - 仅用于输入和显示
   const [inputVal, setInputVal] = useState('');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showKickButton, setShowKickButton] = useState(null); // 显示踢人按钮的玩家ID
   const [playersInResults, setPlayersInResults] = useState([]); // 正在查看结算的玩家ID列表
   const [localProgress, setLocalProgress] = useState(0); // 本地真实播放进度（秒）
   const [hasAnsweredCurrentQuestion, setHasAnsweredCurrentQuestion] = useState(false); // 本地标记：当前题目是否已答对
@@ -52,13 +53,8 @@ const OnlineGameScreen = ({
   const handleKick = async (playerId) => {
     if (!isHost || !roomId) return;
     
-    const playerToKick = players.find(p => p.id === playerId);
     const hostName = players.find(p => p.id === currentUserId)?.name || '房主';
-    
-    if (playerToKick && window.confirm(`确定要踢出 ${playerToKick.name} 吗？`)) {
-      await kickPlayer(roomId, playerId, hostName);
-      setShowKickMenu(null);
-    }
+    await kickPlayer(roomId, playerId, hostName);
   };
 
   // Setup audio
@@ -111,6 +107,15 @@ const OnlineGameScreen = ({
     
     const unsubscribe = subscribeToRoom(roomId, (roomData) => {
       if (!roomData) return;
+      
+      // 检查自己是否还在玩家列表中（是否被踢出）
+      const stillInRoom = roomData.players?.some(p => p.id === currentUserId);
+      if (!stillInRoom && currentUserId) {
+        // 被踢出房间，跳转到首页
+        console.log('你已被踢出房间');
+        onHome();
+        return;
+      }
       
       // 同步消息（所有人）
       if (roomData.messages) {
@@ -205,6 +210,18 @@ const OnlineGameScreen = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // 点击其他地方关闭踢人按钮
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (showKickButton) {
+        setShowKickButton(null);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showKickButton]);
 
   // 歌曲切换时重置音频和进度
   useEffect(() => {
@@ -576,7 +593,12 @@ const OnlineGameScreen = ({
                     isMe 
                       ? 'ring-2 ring-green-400 shadow-lg shadow-green-200' 
                       : 'shadow-md'
-                  }`}
+                  } ${isHost && !isMe ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (isHost && !isMe) {
+                      setShowKickButton(showKickButton === p.id ? null : p.id);
+                    }
+                  }}
                 >
                   {p.avatar}
                 </div>
@@ -585,19 +607,20 @@ const OnlineGameScreen = ({
                     <Crown size={10} className="text-yellow-900" />
                   </div>
                 )}
-                {/* 房主可以踢人：显示叉叉按钮 */}
-                {isHost && !isMe && (
+                {/* 房主点击头像后显示踢人按钮 */}
+                {isHost && !isMe && showKickButton === p.id && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       if (window.confirm(`确定要将 ${p.name} 踢出房间吗？`)) {
                         handleKick(p.id);
+                        setShowKickButton(null);
                       }
                     }}
-                    className="absolute -top-1 -left-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 active:scale-90 transition z-10"
+                    className="absolute -top-0.5 -right-0.5 w-[18px] h-[18px] bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 active:scale-90 transition z-20"
                     title={`踢出 ${p.name}`}
                   >
-                    <X size={12} />
+                    <X size={10} strokeWidth={3} />
                   </button>
                 )}
                 <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 text-white rounded-full flex items-center justify-center text-[9px] font-black shadow-sm border-2 border-white">
