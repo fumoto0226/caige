@@ -130,53 +130,48 @@ const OnlineGameScreen = ({
     return () => unsubscribe();
   }, [roomId]);
 
-  // 根据gameState控制音频播放（同步播放状态和进度）
+  // 播放控制：参考本地游戏的简单机制
   useEffect(() => {
-    if (!audioRef.current || !currentSong) return;
-    
-    if (gameState.isPlaying) {
-      // 同步进度
-      if (Math.abs(audioRef.current.currentTime - gameState.progress) > 0.5) {
-        audioRef.current.currentTime = gameState.progress;
-      }
-      audioRef.current.play().catch(err => console.error('播放失败:', err));
-    } else {
-      audioRef.current.pause();
-    }
-  }, [gameState.isPlaying, gameState.progress, currentSong]);
-
-  // 所有玩家：本地监控播放进度和时长
-  useEffect(() => {
-    if (!gameState.isPlaying || !audioRef.current || !currentSong) {
+    if (!audioRef.current || !currentSong) {
       setLocalProgress(0);
       return;
     }
     
-    const startTime = currentSong.segmentStart || 0;
-    
-    const localTimer = setInterval(() => {
-      if (!audioRef.current) return;
+    if (gameState.isPlaying) {
+      // 开始播放
+      audioRef.current.play().catch(err => console.error('播放失败:', err));
       
-      const currentTime = audioRef.current.currentTime;
-      const elapsed = currentTime - startTime;
+      const startTime = currentSong.segmentStart || 0;
       
-      // 更新本地进度显示
-      setLocalProgress(Math.min(elapsed, maxDuration));
-      
-      // 严格检查：超过时长立即暂停
-      if (elapsed >= maxDuration) {
-        audioRef.current.pause();
-        setLocalProgress(maxDuration);
-        clearInterval(localTimer);
+      // 本地监控播放进度和时长（像本地游戏一样）
+      const localTimer = setInterval(() => {
+        if (!audioRef.current) return;
         
-        // 如果是房主，触发完成逻辑
-        if (isHost) {
-          handlePlaybackFinish();
+        const currentTime = audioRef.current.currentTime;
+        const elapsed = currentTime - startTime;
+        
+        // 更新本地进度显示
+        setLocalProgress(Math.min(elapsed, maxDuration));
+        
+        // 严格检查：超过时长立即暂停
+        if (elapsed >= maxDuration || audioRef.current.ended) {
+          audioRef.current.pause();
+          setLocalProgress(maxDuration);
+          clearInterval(localTimer);
+          
+          // 如果是房主，触发完成逻辑
+          if (isHost) {
+            handlePlaybackFinish();
+          }
         }
-      }
-    }, 100);
-    
-    return () => clearInterval(localTimer);
+      }, 100);
+      
+      return () => clearInterval(localTimer);
+    } else {
+      // 暂停播放
+      audioRef.current.pause();
+      setLocalProgress(0);
+    }
   }, [gameState.isPlaying, currentSong, maxDuration, isHost]);
 
   // 自动滚动消息
@@ -210,36 +205,6 @@ const OnlineGameScreen = ({
     setLocalProgress(0);
   }, [currentSong]);
 
-  // 房主专用：同步进度到Firebase（不监控时长，时长由上面的统一监控处理）
-  useEffect(() => {
-    if (!isHost || !gameState.isPlaying || !audioRef.current) {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      return;
-    }
-    
-    // 每秒同步一次进度到Firebase
-    timerRef.current = setInterval(() => {
-      if (!audioRef.current) return;
-      
-      const currentTime = audioRef.current.currentTime;
-      
-      updateGameState(roomId, {
-        ...gameState,
-        progress: currentTime,
-        isPlaying: true
-      }).catch(err => console.error('同步进度失败:', err));
-    }, 1000);
-    
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-  }, [isHost, gameState.isPlaying, roomId]);
 
   // 房主专用：倒计时监控
   useEffect(() => {
