@@ -378,32 +378,33 @@ const OnlineGameScreen = ({
     setInputVal('');
 
     if (isCorrect && gameState.active) {
-      // 检查是否已经答对过（避免重复加分）
-      if ((gameState.correctPlayers || []).includes(currentUserId)) {
-        return; // 已经答对过，不再处理
+      // 先获取最新的房间数据，确保检查是基于最新状态
+      const { updateDoc, doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      const roomRef = firestoreDoc(db, 'rooms', roomId);
+      
+      const roomSnap = await getDoc(roomRef);
+      const latestRoomData = roomSnap.data();
+      const latestGameState = latestRoomData.gameState || {};
+      const latestCorrectPlayers = latestGameState.correctPlayers || [];
+      const latestPlayers = latestRoomData.players || [];
+      
+      // 检查是否已经答对过（基于最新的Firebase数据）
+      if (latestCorrectPlayers.includes(currentUserId)) {
+        return; // 已经答对过，不再处理（不加分、不提示、不计入排名）
       }
       
       // 立即更新本地分数
       const currentPlayer = players.find(p => p.id === currentUserId);
       
-      // 计算得分：第一个10分，第二个8分，第三个及以后6分
-      const rank = (gameState.correctPlayers || []).length + 1;
+      // 计算得分：基于最新的答对列表
+      const rank = latestCorrectPlayers.length + 1;
       let score = 6; // 默认6分
       if (rank === 1) score = 10;
       else if (rank === 2) score = 8;
       
       // 更新Firebase中的答对列表和玩家分数
-      const newCorrectPlayers = [...(gameState.correctPlayers || []), currentUserId];
-      
-      // 同时更新gameState和players
-      const { updateDoc, doc: firestoreDoc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-      const roomRef = firestoreDoc(db, 'rooms', roomId);
-      
-      // 先获取最新的房间数据
-      const roomSnap = await getDoc(roomRef);
-      const latestRoomData = roomSnap.data();
-      const latestPlayers = latestRoomData.players || [];
+      const newCorrectPlayers = [...latestCorrectPlayers, currentUserId];
       
       // 基于最新数据更新分数
       const updatedPlayers = latestPlayers.map(p => 
@@ -446,7 +447,17 @@ const OnlineGameScreen = ({
         
         // 检查是否所有人都答对了（使用最新的玩家数量）
         if (isHost && newCorrectPlayers.length >= latestPlayers.length) {
-          // 所有人都答对了，1秒后自动公布答案进入下一题
+          // 所有人都答对了，发送提示消息
+          await sendMessage(roomId, {
+            id: `all-correct-${Date.now()}`,
+            playerId: 'system',
+            playerName: 'System',
+            text: '🎊 全员回答正确！即将进入下一题...',
+            type: 'system',
+            timestamp: Date.now()
+          });
+          
+          // 1秒后自动公布答案进入下一题
           setTimeout(() => {
             handleRevealAnswer();
           }, 1000);
