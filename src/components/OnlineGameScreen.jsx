@@ -378,32 +378,33 @@ const OnlineGameScreen = ({
     setInputVal('');
 
     if (isCorrect && gameState.active) {
-      // 检查是否已经答对过（避免重复加分）
-      if ((gameState.correctPlayers || []).includes(currentUserId)) {
+      // 先获取最新的Firebase数据，确保检查基于最新状态
+      const { updateDoc, doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      const roomRef = firestoreDoc(db, 'rooms', roomId);
+      
+      const roomSnap = await getDoc(roomRef);
+      const latestRoomData = roomSnap.data();
+      const latestGameState = latestRoomData.gameState || {};
+      const latestCorrectPlayers = latestGameState.correctPlayers || [];
+      const latestPlayers = latestRoomData.players || [];
+      
+      // 检查是否已经答对过（基于最新的Firebase数据，避免重复加分）
+      if (latestCorrectPlayers.includes(currentUserId)) {
         return; // 已经答对过，不再处理
       }
       
       // 立即更新本地分数
       const currentPlayer = players.find(p => p.id === currentUserId);
       
-      // 计算得分：第一个10分，第二个8分，第三个及以后6分
-      const rank = (gameState.correctPlayers || []).length + 1;
+      // 计算得分：第一个10分，第二个8分，第三个及以后6分（基于最新数据）
+      const rank = latestCorrectPlayers.length + 1;
       let score = 6; // 默认6分
       if (rank === 1) score = 10;
       else if (rank === 2) score = 8;
       
       // 更新Firebase中的答对列表和玩家分数
-      const newCorrectPlayers = [...(gameState.correctPlayers || []), currentUserId];
-      
-      // 同时更新gameState和players
-      const { updateDoc, doc: firestoreDoc, getDoc } = await import('firebase/firestore');
-      const { db } = await import('../firebase');
-      const roomRef = firestoreDoc(db, 'rooms', roomId);
-      
-      // 先获取最新的房间数据
-      const roomSnap = await getDoc(roomRef);
-      const latestRoomData = roomSnap.data();
-      const latestPlayers = latestRoomData.players || [];
+      const newCorrectPlayers = [...latestCorrectPlayers, currentUserId];
       
       // 基于最新数据更新分数
       const updatedPlayers = latestPlayers.map(p => 
