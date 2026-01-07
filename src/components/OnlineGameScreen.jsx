@@ -193,9 +193,18 @@ const OnlineGameScreen = ({
     
     // 使用预先确定的起始位置（从Firebase的gameState.segmentStart读取，所有玩家一致）
     const startTime = currentSong.segmentStart || 0;
-    audioRef.current.onloadedmetadata = () => {
-      audioRef.current.currentTime = startTime;
+    
+    const setStartPosition = () => {
+      if (audioRef.current) {
+        audioRef.current.currentTime = startTime;
+      }
     };
+    
+    audioRef.current.onloadedmetadata = setStartPosition;
+    // 备用：如果已经加载完成
+    if (audioRef.current.readyState >= 2) {
+      setStartPosition();
+    }
     
     // 重置本地进度
     setLocalProgress(0);

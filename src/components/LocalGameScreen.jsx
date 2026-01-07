@@ -85,15 +85,18 @@ const LocalGameScreen = ({
 
   // Playback Timer
   useEffect(() => {
-    if (isPlaying && audioRef.current) {
+    if (isPlaying && audioRef.current && currentSong) {
       audioRef.current.play().catch(err => console.error('播放失败:', err));
+      
+      const startTime = currentSong.segmentStart || 0;
       
       timerRef.current = window.setInterval(() => {
         if (audioRef.current) {
           const currentTime = audioRef.current.currentTime;
-          setProgress(currentTime);
+          const elapsed = currentTime - startTime;
+          setProgress(elapsed);
           
-          if (currentTime >= maxDuration || audioRef.current.ended) {
+          if (elapsed >= maxDuration || audioRef.current.ended) {
             handlePlaybackFinish();
           }
         }
@@ -105,7 +108,7 @@ const LocalGameScreen = ({
       stopTimer();
     }
     return () => stopTimer();
-  }, [isPlaying, maxDuration]);
+  }, [isPlaying, maxDuration, currentSong]);
 
   // Countdown Timer
   useEffect(() => {
