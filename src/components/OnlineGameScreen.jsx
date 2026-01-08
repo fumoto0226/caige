@@ -117,7 +117,19 @@ const OnlineGameScreen = ({
   useEffect(() => {
     if (!roomId) return;
     
+    // 添加连接超时检测
+    let connectionTimeout = setTimeout(() => {
+      console.error('⚠️  Firebase连接超时，可能被墙了');
+      alert('网络连接失败，可能是网络问题。\n如果您在中国大陆，请尝试使用VPN或联系管理员。');
+    }, 10000); // 10秒超时
+    
     const unsubscribe = subscribeToRoom(roomId, (roomData) => {
+      // 成功连接，清除超时
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
+      
       if (!roomData) return;
       
       // 检查自己是否还在玩家列表中（是否被踢出）
@@ -145,7 +157,12 @@ const OnlineGameScreen = ({
       }
     });
     
-    return () => unsubscribe();
+    return () => {
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+      }
+      unsubscribe();
+    };
   }, [roomId]);
 
   // 监听浏览器关闭/刷新事件，自动退出房间

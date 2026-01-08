@@ -286,7 +286,25 @@ const App = () => {
         }
         
         // 加入房间 - 使用房间的歌曲列表
-        const roomData = await joinRoom(pendingRoomAction.roomId, player);
+        let roomData;
+        try {
+          roomData = await Promise.race([
+            joinRoom(pendingRoomAction.roomId, player),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('连接超时')), 10000)
+            )
+          ]);
+        } catch (error) {
+          console.error('加入房间失败:', error);
+          if (error.message === '连接超时') {
+            alert('网络连接超时，无法加入房间。\n如果您在中国大陆，Firebase服务可能被墙，请尝试使用VPN。');
+          } else {
+            alert(`加入房间失败：${error.message}`);
+          }
+          setShowUsernameModal(false);
+          setPendingRoomAction(null);
+          return;
+        }
         setCurrentRoomId(pendingRoomAction.roomId);
         saveCurrentRoomId(pendingRoomAction.roomId); // 保存当前房间ID
         
